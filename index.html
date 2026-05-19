@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Together — Watch Party</title>
+
+    <!-- Firebase SDK (Realtime Database) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #111118;
+            --surface2: #1a1a24;
+            --border: rgba(255, 255, 255, 0.07);
+            --accent: #e8ff47;
+            --text: #f0f0f5;
+            --muted: #6b6b80;
+            --radius: 16px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+            opacity: .4;
+        }
+
+        /* ── SHARED ── */
+        .glow-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb1 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(232, 255, 71, .12) 0%, transparent 70%);
+            top: -100px;
+            right: -100px;
+        }
+
+        .orb2 {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 107, 107, .10) 0%, transparent 70%);
+            bottom: 0;
+            left: -80px;
+        }
+
+        .logo {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: clamp(36px, 8vw, 56px);
+            letter-spacing: -2px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .tagline {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+            letter-spacing: .5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            border: none;
+            transition: all .2s;
+            letter-spacing: .3px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #0a0a0f;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(232, 255, 71, .25);
+        }
+
+        .btn-primary:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: rgba(255, 255, 255, .15);
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 14px;
+            text-align: left;
+        }
+
+        .card-label {
+            font-family: 'Syne', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--muted);
+            font-size: 13px;
+            margin: 14px 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .text-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 13px 18px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .text-input:focus {
+            border-color: var(--accent);
+        }
+
+        .text-input::placeholder {
+            color: var(--muted);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group .text-input {
+            letter-spacing: 2px;
+        }
+
+        .input-group .text-input::placeholder {
+            letter-spacing: 0;
+        }
+
+        .join-btn {
+            width: auto;
+            padding: 13px 20px;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        /* ── FIREBASE SETUP SCREEN ── */
+        #fbSetup {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            position: relative;
+        }
+
+        .setup-inner {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .setup-steps {
+            counter-reset: step;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .step {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(232, 255, 71, .15);
+            border: 1px solid rgba(232, 255, 71, .3);
+            color: var(--accent);
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .step-desc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .step-desc a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .step-desc a:hover {
+            text-decoration: underline;
+        }
+
+        .step-desc code {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .config-textarea {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--text);
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            outline: none;
+            resize: vertical;
+            min-height: 130px;
+            transition: border-color .2s;
+            line-height: 1.6;
+            margin-top: 12px;
+        }
+
+        .config-textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .config-textarea::placeholder {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .fb-error {
+            color: #ff6b6b;
+            font-size: 13px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        /* ── MODAL ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            animation: modalIn .25s ease;
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(.95)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+
+        .modal-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 22px;
+            margin-bottom: 6px;
+        }
+
+        .modal-sub {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 22px;
+            line-height: 1.6;
+        }
+
+        /* ── LANDING ── */
+        #landing {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            position: relative;
+        }
+
+        .landing-inner {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 460px;
+            text-align: center;
+        }
+
+        .landing-inner .tagline {
+            margin-bottom: 44px;
+        }
+
+        /* ── ROOM ── */
+        #room {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        .room-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            flex-shrink: 0;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .room-logo {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: -.5px;
+        }
+
+        .room-logo span {
+            color: var(--accent);
+        }
+
+        .room-code-badge {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-family: 'Syne', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: border-color .2s;
+            flex-shrink: 0;
+        }
+
+        .room-code-badge:hover {
+            border-color: var(--accent);
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .sync-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .sync-dot.alone {
+            background: var(--muted);
+            animation: none;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .4
+            }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-toggle-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            letter-spacing: .5px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all .2s;
+        }
+
+        .chat-toggle-btn:hover {
+            color: var(--text);
+            background: var(--surface2);
+        }
+
+        .room-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── VIDEO ── */
+        .video-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            min-width: 0;
+        }
+
+        .video-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: #000;
+            min-height: 0;
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .upload-zone {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            gap: 14px;
+            transition: background .2s;
+        }
+
+        .upload-zone:hover {
+            background: rgba(232, 255, 71, .03);
+        }
+
+        .upload-icon {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            transition: all .2s;
+        }
+
+        .upload-zone:hover .upload-icon {
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .upload-text {
+            font-family: 'Syne', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .upload-subtext {
+            font-size: 13px;
+            color: var(--muted);
+            text-align: center;
+            max-width: 240px;
+            line-height: 1.6;
+        }
+
+        .upload-btn-small {
+            background: var(--accent);
+            color: #0a0a0f;
+            border: none;
+            border-radius: 10px;
+            padding: 9px 18px;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-name-bar {
+            background: rgba(232, 255, 71, .08);
+            border-bottom: 1px solid rgba(232, 255, 71, .15);
+            padding: 5px 14px;
+            font-size: 12px;
+            color: var(--accent);
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+        }
+
+        .change-file-btn {
+            background: none;
+            border: 1px solid rgba(232, 255, 71, .3);
+            color: var(--accent);
+            border-radius: 6px;
+            padding: 2px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+        }
+
+        .change-file-btn:hover {
+            background: rgba(232, 255, 71, .1);
+        }
+
+        /* ── TOOLBAR ── */
+        .toolbar {
+            background: rgba(10, 10, 15, .97);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, .05);
+            flex-shrink: 0;
+        }
+
+        .progress-row {
+            padding: 10px 16px 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, .15);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+            transition: height .15s;
+        }
+
+        .progress-bar:hover {
+            height: 6px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            pointer-events: none;
+        }
+
+        .progress-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            background: var(--accent);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity .15s;
+            pointer-events: none;
+        }
+
+        .progress-bar:hover .progress-thumb {
+            opacity: 1;
+        }
+
+        .time-display {
+            font-size: 11px;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: .5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px 8px;
+        }
+
+        .ctrl-btn {
+            background: none;
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            padding: 7px;
+            border-radius: 8px;
+            font-size: 17px;
+            transition: all .15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            flex-shrink: 0;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, .1);
+        }
+
+        .ctrl-btn.play-btn {
+            background: var(--accent);
+            color: #000;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 16px;
+        }
+
+        .ctrl-btn.play-btn:hover {
+            transform: scale(1.06);
+        }
+
+        .ctrl-spacer {
+            flex: 1;
+        }
+
+        .volume-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 72px;
+            height: 3px;
+            background: rgba(255, 255, 255, .2);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--text);
+            border-radius: 50%;
+        }
+
+        /* ── CHAT ── */
+        .chat-panel {
+            width: 290px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width .3s;
+        }
+
+        .chat-panel.collapsed {
+            width: 0;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .msg {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            animation: msgIn .2s ease;
+        }
+
+        @keyframes msgIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .msg.mine {
+            align-items: flex-end;
+        }
+
+        .msg.theirs {
+            align-items: flex-start;
+        }
+
+        .msg.system {
+            align-items: center;
+        }
+
+        .msg-name {
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .msg-bubble {
+            padding: 8px 12px;
+            border-radius: 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 210px;
+            word-break: break-word;
+        }
+
+        .mine .msg-bubble {
+            background: var(--accent);
+            color: #000;
+            border-bottom-right-radius: 4px;
+        }
+
+        .theirs .msg-bubble {
+            background: var(--surface2);
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+        }
+
+        .system .msg-bubble {
+            background: transparent;
+            color: var(--muted);
+            font-size: 11px;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .chat-input-area {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 9px 12px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .chat-input:focus {
+            border-color: rgba(232, 255, 71, .4);
+        }
+
+        .chat-input::placeholder {
+            color: var(--muted);
+        }
+
+        .send-btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* ── TOAST ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-size: 13px;
+            color: var(--text);
+            z-index: 10000;
+            opacity: 0;
+            transition: all .3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @media(max-width:640px) {
+            .chat-panel {
+                display: none;
+            }
+
+            .chat-panel.mobile-open {
+                display: flex;
+                position: fixed;
+                inset: 0;
+                width: 100%;
+                z-index: 100;
+            }
+
+            .vol-range {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- ═══════════════════════════════════════════
+     FIREBASE SETUP SCREEN
+     Shown once if no config is saved
+════════════════════════════════════════════ -->
+    <div id="fbSetup">
+        <div class="glow-orb orb1"></div>
+        <div class="glow-orb orb2"></div>
+        <div class="setup-inner">
+            <div class="logo" style="text-align:center;margin-bottom:4px;">to<span>get</span>her</div>
+            <p class="tagline" style="text-align:center;margin-bottom:32px;">one-time Firebase setup — takes 3 minutes</p>
+
+            <div class="setup-steps">
+                <div class="step">
+                    <div class="step-content">
+                        <div class="step-title">Create a free Firebase project</div>
+                        <div class="step-desc">Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Add project → give it any name → Continue (disable Analytics if asked) → Create project.</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-content">
+                        <div class="step-title">Add a Realtime Database</div>
+                        <div class="step-desc">In your project, go to <strong>Build → Realtime Database → Create database</strong>. Choose any region. Select <strong>"Start in test mode"</strong> → Enable.</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-content">
+                        <div class="step-title">Get your web app config</div>
+                        <div class="step-desc">Go to <strong>Project Settings</strong> (gear icon) → scroll to "Your apps" → click <code>&lt;/&gt;</code> (Web) → register app → copy the <code>firebaseConfig</code> object.</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-content">
+                        <div class="step-title">Paste your config below</div>
+                        <div class="step-desc">Paste the entire <code>firebaseConfig = { ... }</code> object or just the JSON part.</div>
+                        <textarea class="config-textarea" id="configInput" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "databaseURL": "https://your-app-default-rtdb.firebaseio.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+                        <div class="fb-error" id="fbError"></div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="saveConfig()">Connect & Continue →</button>
+            <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px;">Config is saved in your browser. Your partner also needs to open this page with their own config saved, or you share the same hosted URL.</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+     NAME MODAL
+════════════════════════════════════════════ -->
+    <div class="modal-overlay" id="nameModal">
+        <div class="modal">
+            <div class="modal-title">What's your name? 👋</div>
+            <div class="modal-sub">Your partner will see this in the chat.</div>
+            <input type="text" class="text-input" id="nameInput" placeholder="e.g. Gautam" maxlength="20" style="margin-bottom:16px;" autofocus />
+            <button class="btn btn-primary" onclick="setName()">Continue →</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+     LANDING
+════════════════════════════════════════════ -->
+    <div id="landing" style="display:none;">
+        <div class="glow-orb orb1"></div>
+        <div class="glow-orb orb2"></div>
+        <div class="landing-inner">
+            <div class="logo">to<span>get</span>her</div>
+            <p class="tagline">watch anything with anyone, in perfect sync</p>
+            <div style="height:40px"></div>
+            <div class="card">
+                <div class="card-label">Create a room</div>
+                <button class="btn btn-primary" onclick="createRoom()">Start a watch party →</button>
+            </div>
+            <div class="divider">or join existing</div>
+            <div class="card">
+                <div class="card-label">Join with code</div>
+                <div class="input-group">
+                    <input type="text" class="text-input" id="joinCodeInput" placeholder="Room code" maxlength="6" oninput="this.value=this.value.toUpperCase()" />
+                    <button class="btn btn-secondary join-btn" onclick="joinRoom()">Join</button>
+                </div>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin-top:8px;cursor:pointer;" onclick="clearConfig()">⚙ Change Firebase config</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+     ROOM
+════════════════════════════════════════════ -->
+    <div id="room">
+        <div class="room-header">
+            <div class="room-logo">to<span>get</span>her</div>
+            <div class="room-code-badge" onclick="copyRoomLink()">🔗 <span id="roomCodeDisplay">------</span> <span style="opacity:.4;font-size:11px">⎘</span></div>
+            <div class="header-right">
+                <div class="sync-status">
+                    <div class="sync-dot alone" id="syncDot"></div><span id="syncLabel">Waiting for partner</span>
+                </div>
+                <button class="chat-toggle-btn" onclick="toggleChat()" id="chatToggleBtn">💬 Chat</button>
+            </div>
+        </div>
+
+        <div class="room-body">
+            <div class="video-area">
+                <div class="file-name-bar" id="fileNameBar">
+                    <span id="fileNameText"></span>
+                    <button class="change-file-btn" onclick="document.getElementById('fileInput').click()">Change video</button>
+                </div>
+                <div class="video-wrapper" id="videoWrapper">
+                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">🎬</div>
+                        <div class="upload-text">Drop your video here</div>
+                        <div class="upload-subtext">MP4, MKV, MOV, AVI, WebM — any format</div>
+                        <button class="upload-btn-small" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Browse file</button>
+                    </div>
+                    <video id="videoPlayer" playsinline webkit-playsinline></video>
+                </div>
+                <input type="file" id="fileInput" accept="video/*,audio/*" onchange="loadVideo(this)">
+
+                <div class="toolbar">
+                    <div class="progress-row">
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill" style="width:0%"></div>
+                            <div class="progress-thumb" id="progressThumb" style="left:0%"></div>
+                        </div>
+                        <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                    </div>
+                    <div class="controls-row">
+                        <button class="ctrl-btn" onclick="skip(-10)" title="−10s">⏮</button>
+                        <button class="ctrl-btn play-btn" id="playBtn" onclick="togglePlay()">▶</button>
+                        <button class="ctrl-btn" onclick="skip(10)" title="+10s">⏭</button>
+                        <div class="volume-group">
+                            <button class="ctrl-btn" onclick="toggleMute()" id="muteBtn">🔊</button>
+                            <input type="range" class="vol-range" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
+                        </div>
+                        <div class="ctrl-spacer"></div>
+                        <button class="ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+                        <button class="ctrl-btn" id="mobileChatBtn" onclick="openMobileChat()" style="display:none">💬</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-panel" id="chatPanel">
+                <div class="chat-header">
+                    <span>Chat 💬</span>
+                    <button class="chat-toggle-btn" onclick="toggleChat()">✕</button>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="msg system">
+                        <div class="msg-bubble">Share the room code with your partner ✨</div>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="Say something..." maxlength="200" onkeydown="if(event.key==='Enter')sendChat()" />
+                    <button class="send-btn" onclick="sendChat()">↑</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+    <script>
+        'use strict';
+
+        // ══════════════════════════════════════════════
+        //  GLOBALS
+        // ══════════════════════════════════════════════
+        let myName = '';
+        let roomCode = '';
+        let db = null; // Firebase database instance
+        let roomRef = null; // ref to rooms/{roomCode}
+        let stateRef = null; // ref to rooms/{roomCode}/state
+        let chatRef = null; // ref to rooms/{roomCode}/chat
+        let presRef = null; // ref to rooms/{roomCode}/presence/{myName}
+        let videoLoaded = false;
+        let chatOpen = true;
+        let isSeeking = false; // true while user is dragging progress bar
+        let heartbeatTimer = null;
+        let ignoreNextStateUpdate = false; // set true right after we write state ourselves
+
+        const video = document.getElementById('videoPlayer');
+
+        // ══════════════════════════════════════════════
+        //  1. FIREBASE CONFIG
+        // ══════════════════════════════════════════════
+        function saveConfig() {
+            const raw = document.getElementById('configInput').value.trim();
+            const errEl = document.getElementById('fbError');
+            errEl.style.display = 'none';
+
+            // Accept either "const firebaseConfig = {...}" or just the JSON object
+            let jsonStr = raw;
+            // Strip variable assignment if present
+            jsonStr = jsonStr.replace(/^.*?=\s*/, '').replace(/;?\s*$/, '').trim();
+            // Convert JS object notation to JSON (handle unquoted keys)
+            jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
+            // Remove trailing commas
+            jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+
+            let cfg;
+            try {
+                cfg = JSON.parse(jsonStr);
+            } catch (e) {
+                errEl.textContent = '⚠️ Could not parse config. Make sure you copied the full firebaseConfig object.';
+                errEl.style.display = 'block';
+                return;
+            }
+            if (!cfg.databaseURL) {
+                errEl.textContent = '⚠️ Missing "databaseURL". Did you enable Realtime Database in your Firebase project?';
+                errEl.style.display = 'block';
+                return;
+            }
+            if (!cfg.apiKey) {
+                errEl.textContent = '⚠️ Missing "apiKey". Copy the full firebaseConfig from Project Settings.';
+                errEl.style.display = 'block';
+                return;
+            }
+            localStorage.setItem('together_fb_config', JSON.stringify(cfg));
+            initFirebase(cfg);
+        }
+
+        function clearConfig() {
+            localStorage.removeItem('together_fb_config');
+            location.reload();
+        }
+
+        function initFirebase(cfg) {
+            try {
+                // Avoid re-initializing if already done
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(cfg);
+                }
+                db = firebase.database();
+                // Quick connectivity test
+                db.ref('.info/connected').once('value', snap => {
+                    if (snap.val() === false) {
+                        // Not necessarily an error — just offline. Let it proceed.
+                    }
+                });
+                showLanding();
+            } catch (e) {
+                const errEl = document.getElementById('fbError');
+                if (errEl) {
+                    errEl.textContent = '⚠️ Firebase init failed: ' + e.message;
+                    errEl.style.display = 'block';
+                } else {
+                    showToast('Firebase error: ' + e.message);
+                }
+            }
+        }
+
+        function showLanding() {
+            document.getElementById('fbSetup').style.display = 'none';
+            document.getElementById('landing').style.display = 'flex';
+            // Check URL for room code
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('room');
+            if (code) document.getElementById('joinCodeInput').value = code.toUpperCase();
+            if (window.innerWidth <= 640) {
+                document.getElementById('mobileChatBtn').style.display = 'flex';
+                document.getElementById('chatToggleBtn').style.display = 'none';
+                chatOpen = false;
+            }
+        }
+
+        // On page load: check for saved config
+        window.onload = () => {
+            const saved = localStorage.getItem('together_fb_config');
+            if (saved) {
+                try {
+                    initFirebase(JSON.parse(saved));
+                    return;
+                } catch (e) {
+                    localStorage.removeItem('together_fb_config');
+                }
+            }
+            // Show setup screen
+            document.getElementById('fbSetup').style.display = 'flex';
+        };
+
+        // ══════════════════════════════════════════════
+        //  2. NAME
+        // ══════════════════════════════════════════════
+        function setName() {
+            const v = document.getElementById('nameInput').value.trim();
+            if (!v) {
+                showToast('Please enter your name 😊');
+                return;
+            }
+            myName = v;
+            document.getElementById('nameModal').classList.remove('show');
+        }
+        document.getElementById('nameInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') setName();
+        });
+
+        // ══════════════════════════════════════════════
+        //  3. ROOM — CREATE / JOIN
+        // ══════════════════════════════════════════════
+        function genCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            return Array.from({
+                length: 6
+            }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        }
+
+        function createRoom() {
+            if (!myName) {
+                showNameModal();
+                return;
+            }
+            roomCode = genCode();
+            enterRoom();
+        }
+
+        function joinRoom() {
+            if (!myName) {
+                showNameModal();
+                return;
+            }
+            const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+            if (code.length < 4) {
+                showToast('Enter a valid room code');
+                return;
+            }
+            roomCode = code;
+            enterRoom();
+        }
+
+        function showNameModal() {
+            document.getElementById('nameModal').classList.add('show');
+            showToast('Enter your name first!');
+        }
+
+        function enterRoom() {
+            document.getElementById('landing').style.display = 'none';
+            document.getElementById('room').style.display = 'flex';
+            document.getElementById('roomCodeDisplay').textContent = roomCode;
+
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('room', roomCode);
+            window.history.replaceState({}, '', url);
+
+            // Set up Firebase references
+            roomRef = db.ref('rooms/' + roomCode);
+            stateRef = roomRef.child('state');
+            chatRef = roomRef.child('chat');
+            presRef = roomRef.child('presence').child(myName);
+
+            setupPresence();
+            listenToState();
+            listenToChat();
+            listenToPresence();
+
+            addSystemMsg('Room ' + roomCode + ' — share the link with your partner!');
+        }
+
+        // ══════════════════════════════════════════════
+        //  4. PRESENCE — WHO IS IN THE ROOM
+        // ══════════════════════════════════════════════
+        function setupPresence() {
+            // Write our presence
+            const presData = {
+                online: true,
+                name: myName,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            };
+            presRef.set(presData);
+
+            // Auto-remove on disconnect
+            presRef.onDisconnect().update({
+                online: false
+            });
+
+            // Keep alive every 30s
+            setInterval(() => {
+                presRef.update({
+                    ts: firebase.database.ServerValue.TIMESTAMP,
+                    online: true
+                });
+            }, 30000);
+        }
+
+        function listenToPresence() {
+            roomRef.child('presence').on('value', snap => {
+                const presenceData = snap.val() || {};
+                const others = Object.entries(presenceData).filter(([name, data]) => {
+                    return name !== myName && data && data.online === true;
+                });
+                const connected = others.length > 0;
+                updateSyncStatus(connected);
+                if (connected) {
+                    const partnerName = others[0][0];
+                    // Only announce if just joined (check if we already announced)
+                    if (!window._announcedPartners) window._announcedPartners = new Set();
+                    if (!window._announcedPartners.has(partnerName)) {
+                        window._announcedPartners.add(partnerName);
+                        addSystemMsg(partnerName + ' joined the room 👋');
+                        // Send our current state to them
+                        if (videoLoaded) broadcastState('heartbeat');
+                    }
+                }
+            });
+        }
+
+        function updateSyncStatus(connected) {
+            document.getElementById('syncDot').classList.toggle('alone', !connected);
+            document.getElementById('syncLabel').textContent = connected ? 'In sync ✓' : 'Waiting for partner';
+        }
+
+        // ══════════════════════════════════════════════
+        //  5. SYNC STATE — THE CORE ENGINE
+        //
+        //  Data structure in Firebase:
+        //  rooms/{code}/state = {
+        //    time:    <seconds>,     current video position
+        //    playing: <bool>,        is video playing
+        //    by:      <name>,        WHO sent this (CRITICAL for dedup)
+        //    action:  <string>,      'play'|'pause'|'seek'|'heartbeat'
+        //    ts:      <timestamp>    when it was sent
+        //  }
+        //
+        //  Rule #1: ALWAYS ignore events where state.by === myName
+        //           This prevents own-event loops that break playback.
+        //  Rule #2: For 'heartbeat', only correct if drift > 2 seconds.
+        //  Rule #3: For 'play'/'pause'/'seek', apply immediately.
+        // ══════════════════════════════════════════════
+
+        function broadcastState(action) {
+            if (!db || !stateRef) return;
+            const state = {
+                time: video.currentTime,
+                playing: !video.paused,
+                by: myName,
+                action: action,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            };
+            // Set flag BEFORE writing so our own listener ignores it
+            ignoreNextStateUpdate = true;
+            stateRef.set(state).catch(err => {
+                console.error('Firebase write error:', err);
+                ignoreNextStateUpdate = false;
+            });
+        }
+
+        function listenToState() {
+            stateRef.on('value', snap => {
+                const state = snap.val();
+                if (!state) return;
+
+                // ══ RULE #1: Ignore our own writes ══
+                if (state.by === myName) {
+                    ignoreNextStateUpdate = false; // reset flag
+                    return;
+                }
+
+                // Don't apply if video isn't loaded yet
+                if (!videoLoaded) return;
+
+                // ══ Apply based on action ══
+                switch (state.action) {
+
+                    case 'play':
+                        // Set time (if significantly different) then play
+                        if (Math.abs(video.currentTime - state.time) > 0.5) {
+                            video.currentTime = state.time;
+                        }
+                        video.play().catch(() => {});
+                        updatePlayBtn(true);
+                        addSystemMsg(state.by + ' pressed play ▶');
+                        break;
+
+                    case 'pause':
+                        video.currentTime = state.time;
+                        video.pause();
+                        updatePlayBtn(false);
+                        addSystemMsg(state.by + ' paused ⏸');
+                        break;
+
+                    case 'seek':
+                        video.currentTime = state.time;
+                        // Mirror their play/pause state
+                        if (state.playing && video.paused) {
+                            video.play().catch(() => {});
+                            updatePlayBtn(true);
+                        } else if (!state.playing && !video.paused) {
+                            video.pause();
+                            updatePlayBtn(false);
+                        }
+                        addSystemMsg(state.by + ' seeked to ' + fmt(state.time));
+                        break;
+
+                    case 'heartbeat':
+                        // ══ RULE #2: Only correct meaningful drift ══
+                        const drift = Math.abs(video.currentTime - state.time);
+                        if (drift > 2) {
+                            video.currentTime = state.time;
+                            addSystemMsg('⚡ Synced (' + drift.toFixed(1) + 's drift corrected)');
+                        }
+                        // Mirror play/pause state
+                        if (state.playing && video.paused) {
+                            video.play().catch(() => {});
+                            updatePlayBtn(true);
+                        } else if (!state.playing && !video.paused) {
+                            video.pause();
+                            updatePlayBtn(false);
+                        }
+                        break;
+                }
+            });
+        }
+
+        // Heartbeat: send our position every 5 seconds while playing
+        function startHeartbeat() {
+            stopHeartbeat();
+            heartbeatTimer = setInterval(() => {
+                if (videoLoaded && !video.paused && !isSeeking) {
+                    broadcastState('heartbeat');
+                }
+            }, 5000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatTimer) {
+                clearInterval(heartbeatTimer);
+                heartbeatTimer = null;
+            }
+        }
+
+        // ══════════════════════════════════════════════
+        //  6. CHAT
+        // ══════════════════════════════════════════════
+        function sendChat() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !chatRef) return;
+            input.value = '';
+            chatRef.push({
+                name: myName,
+                text,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        // Track the key of the last chat message we added to avoid double-rendering
+        const _addedChatKeys = new Set();
+
+        function listenToChat() {
+            // Only listen to NEW messages from now on
+            const nowTs = Date.now();
+            chatRef.orderByChild('ts').startAt(nowTs).on('child_added', snap => {
+                const msg = snap.val();
+                if (!msg || _addedChatKeys.has(snap.key)) return;
+                _addedChatKeys.add(snap.key);
+                addChatMsg(msg.name, msg.text, msg.name === myName);
+            });
+        }
+
+        // ══════════════════════════════════════════════
+        //  7. VIDEO PLAYER
+        // ══════════════════════════════════════════════
+        function loadVideo(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            video.pause();
+            if (video.src && video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
+            video.removeAttribute('src');
+            video.load();
+
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            video.muted = false;
+            video.volume = 1;
+            video.load();
+
+            video.style.display = 'block';
+            document.getElementById('uploadZone').style.display = 'none';
+            document.getElementById('fileNameBar').style.display = 'flex';
+            document.getElementById('fileNameText').textContent = file.name;
+            videoLoaded = true;
+
+            video.addEventListener('loadedmetadata', () => {
+                updateTimeDisplay();
+                showToast('🎬 Loaded! Press play when ready.');
+                startHeartbeat();
+            }, {
+                once: true
+            });
+
+            input.value = '';
+        }
+
+        // ── PLAY / PAUSE ──
+        function togglePlay() {
+            if (!videoLoaded) {
+                showToast('Load a video first!');
+                return;
+            }
+            if (video.paused) {
+                video.muted = false;
+                video.play().then(() => {
+                    broadcastState('play');
+                    updatePlayBtn(true);
+                }).catch(() => showToast('Tap again to play ▶'));
+            } else {
+                video.pause();
+                broadcastState('pause');
+                updatePlayBtn(false);
+            }
+        }
+
+        function updatePlayBtn(playing) {
+            document.getElementById('playBtn').textContent = playing ? '⏸' : '▶';
+        }
+
+        // ── SKIP ──
+        function skip(sec) {
+            if (!videoLoaded) return;
+            video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + sec));
+            broadcastState('seek');
+        }
+
+        // ── VOLUME / MUTE ──
+        function toggleMute() {
+            video.muted = !video.muted;
+            document.getElementById('muteBtn').textContent = video.muted ? '🔇' : '🔊';
+            if (!video.muted && video.volume === 0) {
+                video.volume = 1;
+            }
+        }
+
+        function setVolume(val) {
+            video.volume = parseFloat(val);
+            video.muted = parseFloat(val) === 0;
+            document.getElementById('muteBtn').textContent = parseFloat(val) === 0 ? '🔇' : '🔊';
+        }
+
+        // ── PROGRESS BAR ──
+        video.addEventListener('timeupdate', () => {
+            if (!video.duration || isSeeking) return;
+            const pct = (video.currentTime / video.duration) * 100;
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('progressThumb').style.left = pct + '%';
+            updateTimeDisplay();
+        });
+
+        video.addEventListener('ended', () => {
+            updatePlayBtn(false);
+            stopHeartbeat();
+        });
+
+        video.addEventListener('play', () => startHeartbeat());
+        video.addEventListener('pause', () => stopHeartbeat());
+
+        function seekTo(e) {
+            if (!videoLoaded || !video.duration) return;
+            const bar = document.getElementById('progressBar');
+            const rect = bar.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            video.currentTime = pct * video.duration;
+            updateTimeDisplay();
+        }
+
+        // Mouse drag
+        let dragging = false;
+        document.getElementById('progressBar').addEventListener('mousedown', e => {
+            dragging = true;
+            isSeeking = true;
+            seekTo(e);
+        });
+        document.addEventListener('mousemove', e => {
+            if (dragging) seekTo(e);
+        });
+        document.addEventListener('mouseup', () => {
+            if (dragging) {
+                dragging = false;
+                isSeeking = false;
+                broadcastState('seek');
+            }
+        });
+
+        // Touch drag
+        document.getElementById('progressBar').addEventListener('touchstart', e => {
+            isSeeking = true;
+            seekTo(e.touches[0]);
+        }, {
+            passive: true
+        });
+        document.getElementById('progressBar').addEventListener('touchmove', e => {
+            e.preventDefault();
+            seekTo(e.touches[0]);
+        }, {
+            passive: false
+        });
+        document.getElementById('progressBar').addEventListener('touchend', () => {
+            isSeeking = false;
+            broadcastState('seek');
+        });
+
+        function updateTimeDisplay() {
+            document.getElementById('timeDisplay').textContent =
+                fmt(video.currentTime) + ' / ' + (video.duration ? fmt(video.duration) : '0:00');
+        }
+
+        function fmt(s) {
+            if (!s || isNaN(s)) return '0:00';
+            return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0');
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) document.querySelector('.video-area').requestFullscreen().catch(() => {});
+            else document.exitFullscreen();
+        }
+
+        // Drag & drop
+        document.getElementById('videoWrapper').addEventListener('dragover', e => {
+            e.preventDefault();
+        });
+        document.getElementById('videoWrapper').addEventListener('drop', e => {
+            e.preventDefault();
+            const f = e.dataTransfer.files[0];
+            if (f && (f.type.startsWith('video/') || f.type.startsWith('audio/'))) {
+                const dt = new DataTransfer();
+                dt.items.add(f);
+                document.getElementById('fileInput').files = dt.files;
+                loadVideo(document.getElementById('fileInput'));
+            }
+        });
+
+        // ── KEYBOARD SHORTCUTS ──
+        document.addEventListener('keydown', e => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+            if (e.code === 'ArrowRight') skip(10);
+            if (e.code === 'ArrowLeft') skip(-10);
+            if (e.code === 'KeyM') toggleMute();
+            if (e.code === 'KeyF') toggleFullscreen();
+        });
+
+        // ══════════════════════════════════════════════
+        //  8. CHAT UI
+        // ══════════════════════════════════════════════
+        function addChatMsg(name, text, mine) {
+            const msgs = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'msg ' + (mine ? 'mine' : 'theirs');
+            div.innerHTML = `<div class="msg-name">${esc(name)}</div><div class="msg-bubble">${esc(text)}</div>`;
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+            if (!chatOpen && !mine) showToast('💬 ' + name + ': ' + text);
+        }
+
+        function addSystemMsg(text) {
+            const msgs = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'msg system';
+            div.innerHTML = `<div class="msg-bubble">${esc(text)}</div>`;
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function esc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // ══════════════════════════════════════════════
+        //  9. UI HELPERS
+        // ══════════════════════════════════════════════
+        function toggleChat() {
+            chatOpen = !chatOpen;
+            document.getElementById('chatPanel').classList.toggle('collapsed', !chatOpen);
+        }
+
+        function openMobileChat() {
+            document.getElementById('chatPanel').classList.add('mobile-open');
+            chatOpen = true;
+        }
+
+        function copyRoomLink() {
+            const url = new URL(window.location);
+            url.searchParams.set('room', roomCode);
+            navigator.clipboard.writeText(url.toString())
+                .then(() => showToast('Invite link copied! 🔗 Share this with your partner'))
+                .catch(() => showToast('Room code: ' + roomCode));
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(t._t);
+            t._t = setTimeout(() => t.classList.remove('show'), 3500);
+        }
+
+        // ══════════════════════════════════════════════
+        //  10. CLEANUP
+        // ══════════════════════════════════════════════
+        window.addEventListener('beforeunload', () => {
+            stopHeartbeat();
+            if (presRef) presRef.update({
+                online: false
+            });
+            if (stateRef) stateRef.off();
+            if (chatRef) chatRef.off();
+            if (roomRef) roomRef.off();
+        });
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</body>
+
+</html>
