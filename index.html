@@ -1073,12 +1073,29 @@ function handleMessage(data) {
 }
 
 function sendEvent(type, extra = {}) {
-  const data = { db.ref('rooms/' + roomCode + '/events').push({
-  type,
-  data,
-  sender: myName,
-  ts: Date.now()
-});
+
+  const data = {
+    type,
+    sender: myName,
+    ts: Date.now(),
+    ...extra
+  };
+
+  // Existing local sync
+  localStorage.setItem(lsKey(type), JSON.stringify(data));
+
+  if (bc) {
+    bc.postMessage(data);
+  }
+
+  // Firebase sync
+  db.ref('rooms/' + roomCode + '/events').push({
+    type,
+    data,
+    sender: myName,
+    ts: Date.now()
+  });
+}
 
 function sendSyncState() {
   sendEvent('sync', { time: video.currentTime, playing: !video.paused });
