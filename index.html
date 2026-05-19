@@ -658,6 +658,8 @@
             backdrop-filter: blur(12px);
             border-top: 1px solid rgba(255, 255, 255, .05);
             flex-shrink: 0;
+            transition: opacity .3s ease;
+opacity: 1;
         }
 
         .progress-row {
@@ -1180,6 +1182,7 @@
         let ignoreNextStateUpdate = false; // set true right after we write state ourselves
 
         const video = document.getElementById('videoPlayer');
+        let controlsTimeout = null;
 
         // ══════════════════════════════════════════════
         //  1. FIREBASE CONFIG
@@ -1803,6 +1806,39 @@
                 .then(() => showToast('Invite link copied! 🔗 Share this with your partner'))
                 .catch(() => showToast('Room code: ' + roomCode));
         }
+
+        function showControls() {
+
+    const toolbar = document.querySelector('.toolbar');
+
+    toolbar.style.opacity = '1';
+    toolbar.style.pointerEvents = 'auto';
+
+    clearTimeout(controlsTimeout);
+
+    if (!video.paused) {
+
+        controlsTimeout = setTimeout(() => {
+
+            toolbar.style.opacity = '0';
+            toolbar.style.pointerEvents = 'none';
+
+        }, 2000);
+    }
+}
+
+video.addEventListener('mousemove', showControls);
+video.addEventListener('touchstart', showControls);
+
+video.addEventListener('pause', () => {
+
+    const toolbar = document.querySelector('.toolbar');
+
+    toolbar.style.opacity = '1';
+    toolbar.style.pointerEvents = 'auto';
+});
+
+video.addEventListener('play', showControls);
 
         function showToast(msg) {
             const t = document.getElementById('toast');
