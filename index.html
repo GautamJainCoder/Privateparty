@@ -936,20 +936,20 @@ db.ref('rooms/' + roomCode + '/events').on('child_added', snap => {
 
   switch(ev.type) {
 
-    case 'play':
-      video.currentTime = ev.data.time;
-      video.play();
-      break;
+  case 'play':
+    video.currentTime = ev.time;
+    video.play();
+    break;
 
-    case 'pause':
-      video.currentTime = ev.data.time;
-      video.pause();
-      break;
+  case 'pause':
+    video.currentTime = ev.time;
+    video.pause();
+    break;
 
-    case 'seek':
-      video.currentTime = ev.data.time;
-      break;
-  }
+  case 'seek':
+    video.currentTime = ev.time;
+    break;
+}
 
 });
 
@@ -1074,6 +1074,8 @@ function handleMessage(data) {
 
 function sendEvent(type, extra = {}) {
 
+ function sendEvent(type, extra = {}) {
+
   const data = {
     type,
     sender: myName,
@@ -1088,13 +1090,12 @@ function sendEvent(type, extra = {}) {
     bc.postMessage(data);
   }
 
-  // Firebase sync
-  db.ref('rooms/' + roomCode + '/events').push({
-    type,
-    data,
-    sender: myName,
-    ts: Date.now()
-  });
+  // Firebase realtime sync
+  if (typeof db !== 'undefined' && roomCode) {
+
+    db.ref('rooms/' + roomCode + '/events').push(data);
+
+  }
 }
 
 function sendSyncState() {
