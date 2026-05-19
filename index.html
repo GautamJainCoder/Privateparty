@@ -1773,9 +1773,23 @@
         //  9. UI HELPERS
         // ══════════════════════════════════════════════
         function toggleChat() {
-            chatOpen = !chatOpen;
-            document.getElementById('chatPanel').classList.toggle('collapsed', !chatOpen);
-        }
+
+    const panel = document.getElementById('chatPanel');
+
+    // MOBILE
+    if (window.innerWidth <= 640) {
+
+        panel.classList.toggle('mobile-open');
+
+        chatOpen = panel.classList.contains('mobile-open');
+
+        return;
+    }
+
+    // DESKTOP
+    chatOpen = !chatOpen;
+    panel.classList.toggle('collapsed', !chatOpen);
+}
 
         function openMobileChat() {
             document.getElementById('chatPanel').classList.add('mobile-open');
