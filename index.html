@@ -923,10 +923,51 @@ function enterRoom() {
 
   // Setup sync
   setupSync();
+  firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Listen for realtime events
+db.ref('rooms/' + roomCode + '/events').on('child_added', snap => {
+
+  const ev = snap.val();
+
+  if (!ev) return;
+  if (ev.sender === myName) return;
+
+  switch(ev.type) {
+
+    case 'play':
+      video.currentTime = ev.data.time;
+      video.play();
+      break;
+
+    case 'pause':
+      video.currentTime = ev.data.time;
+      video.pause();
+      break;
+
+    case 'seek':
+      video.currentTime = ev.data.time;
+      break;
+  }
+
+});
 
   addSystemMsg('Room ' + roomCode + ' — share the code with your partner!');
 }
-
+//FIREBASE MODEL
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDCEvUIyEQqVtRT78DSgvHcLI-lgT8ew-4",
+  authDomain: "privateparty-ng.firebaseapp.com",
+  databaseURL: "https://privateparty-ng-default-rtdb.firebaseio.com",
+  projectId: "privateparty-ng",
+  storageBucket: "privateparty-ng.firebasestorage.app",
+  messagingSenderId: "164845090477",
+  appId: "1:164845090477:web:ca486d32c67650ef1eb824",
+  measurementId: "G-SR0Y79KDKY"
+};
+  
 // ==================== SYNC ENGINE ====================
 // Uses localStorage + storage events for cross-device sync
 // Key structure: together_<roomCode>_<type>
@@ -1032,10 +1073,12 @@ function handleMessage(data) {
 }
 
 function sendEvent(type, extra = {}) {
-  const data = { type, name: myName, ts: Date.now(), ...extra };
-  localStorage.setItem(lsKey('event_' + type), JSON.stringify(data));
-  if (bc) bc.postMessage(data);
-}
+  const data = { db.ref('rooms/' + roomCode + '/events').push({
+  type,
+  data,
+  sender: myName,
+  ts: Date.now()
+});
 
 function sendSyncState() {
   sendEvent('sync', { time: video.currentTime, playing: !video.paused });
@@ -1273,6 +1316,8 @@ window.addEventListener('beforeunload', () => {
   if (bc) bc.close();
   localStorage.removeItem(lsKey('presence_' + myName));
 });
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </script>
 </body>
 </html>
