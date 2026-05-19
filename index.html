@@ -787,7 +787,12 @@
           <button class="upload-btn-small" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Browse file</button>
         </div>
 
-        <video id="videoPlayer" preload="metadata"></video>
+        <video
+  id="videoPlayer"
+  preload="metadata"
+  controlslist="nodownload"
+  playsinline
+></video>
         <input type="file" id="fileInput" accept="video/*" onchange="loadVideo(this)">
       </div>
 
