@@ -1495,7 +1495,7 @@
                     case 'heartbeat':
                         // ══ RULE #2: Only correct meaningful drift ══
                         const drift = Math.abs(video.currentTime - state.time);
-                        if (drift > 2) {
+                        if (drift > 8) {
                             video.currentTime = state.time;
                             addSystemMsg('⚡ Synced (' + drift.toFixed(1) + 's drift corrected)');
                         }
@@ -1519,7 +1519,7 @@
                 if (videoLoaded && !video.paused && !isSeeking) {
                     broadcastState('heartbeat');
                 }
-            }, 5000);
+            }, 15000);
         }
 
         function stopHeartbeat() {
