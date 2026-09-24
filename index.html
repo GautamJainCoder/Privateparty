@@ -1,1868 +1,2431 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Together — Watch Party</title>
-
-    <!-- Firebase SDK (Realtime Database) -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
-
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        :root {
-            --bg: #0a0a0f;
-            --surface: #111118;
-            --surface2: #1a1a24;
-            --border: rgba(255, 255, 255, 0.07);
-            --accent: #e8ff47;
-            --text: #f0f0f5;
-            --muted: #6b6b80;
-            --radius: 16px;
-        }
-
-        html,
-        body {
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'DM Sans', sans-serif;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-            pointer-events: none;
-            z-index: 9999;
-            opacity: .4;
-        }
-
-        /* ── SHARED ── */
-        .glow-orb {
-            position: fixed;
-            border-radius: 50%;
-            filter: blur(80px);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .orb1 {
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(232, 255, 71, .12) 0%, transparent 70%);
-            top: -100px;
-            right: -100px;
-        }
-
-        .orb2 {
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(255, 107, 107, .10) 0%, transparent 70%);
-            bottom: 0;
-            left: -80px;
-        }
-
-        .logo {
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: clamp(36px, 8vw, 56px);
-            letter-spacing: -2px;
-            line-height: 1;
-            margin-bottom: 6px;
-        }
-
-        .logo span {
-            color: var(--accent);
-        }
-
-        .tagline {
-            font-size: 14px;
-            color: var(--muted);
-            font-weight: 300;
-            letter-spacing: .5px;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 14px 24px;
-            border-radius: 12px;
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            border: none;
-            transition: all .2s;
-            letter-spacing: .3px;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: #0a0a0f;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 24px rgba(232, 255, 71, .25);
-        }
-
-        .btn-primary:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-secondary {
-            background: var(--surface2);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            border-color: rgba(255, 255, 255, .15);
-        }
-
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 28px;
-            margin-bottom: 14px;
-            text-align: left;
-        }
-
-        .card-label {
-            font-family: 'Syne', sans-serif;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin-bottom: 14px;
-        }
-
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: var(--muted);
-            font-size: 13px;
-            margin: 14px 0;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .text-input {
-            width: 100%;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 13px 18px;
-            color: var(--text);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 15px;
-            outline: none;
-            transition: border-color .2s;
-        }
-
-        .text-input:focus {
-            border-color: var(--accent);
-        }
-
-        .text-input::placeholder {
-            color: var(--muted);
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .input-group .text-input {
-            letter-spacing: 2px;
-        }
-
-        .input-group .text-input::placeholder {
-            letter-spacing: 0;
-        }
-
-        .join-btn {
-            width: auto;
-            padding: 13px 20px;
-            flex-shrink: 0;
-            font-size: 14px;
-        }
-
-        /* ── FIREBASE SETUP SCREEN ── */
-        #fbSetup {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            position: relative;
-        }
-
-        .setup-inner {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 520px;
-        }
-
-        .setup-steps {
-            counter-reset: step;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .step {
-            display: flex;
-            gap: 14px;
-            align-items: flex-start;
-            padding: 16px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-        }
-
-        .step::before {
-            counter-increment: step;
-            content: counter(step);
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            background: rgba(232, 255, 71, .15);
-            border: 1px solid rgba(232, 255, 71, .3);
-            color: var(--accent);
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-
-        .step-content {
-            flex: 1;
-        }
-
-        .step-title {
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-
-        .step-desc {
-            font-size: 13px;
-            color: var(--muted);
-            line-height: 1.6;
-        }
-
-        .step-desc a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        .step-desc a:hover {
-            text-decoration: underline;
-        }
-
-        .step-desc code {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 1px 6px;
-            font-size: 12px;
-            color: var(--text);
-        }
-
-        .config-textarea {
-            width: 100%;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 16px;
-            color: var(--text);
-            font-family: 'DM Mono', monospace;
-            font-size: 12px;
-            outline: none;
-            resize: vertical;
-            min-height: 130px;
-            transition: border-color .2s;
-            line-height: 1.6;
-            margin-top: 12px;
-        }
-
-        .config-textarea:focus {
-            border-color: var(--accent);
-        }
-
-        .config-textarea::placeholder {
-            color: var(--muted);
-            font-size: 11px;
-        }
-
-        .fb-error {
-            color: #ff6b6b;
-            font-size: 13px;
-            margin-top: 8px;
-            display: none;
-        }
-
-        /* ── MODAL ── */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .7);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-        }
-
-        .modal-overlay.show {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 30px;
-            width: 100%;
-            max-width: 400px;
-            animation: modalIn .25s ease;
-        }
-
-        @keyframes modalIn {
-            from {
-                opacity: 0;
-                transform: scale(.95)
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1)
-            }
-        }
-
-        .modal-title {
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 22px;
-            margin-bottom: 6px;
-        }
-
-        .modal-sub {
-            color: var(--muted);
-            font-size: 13px;
-            margin-bottom: 22px;
-            line-height: 1.6;
-        }
-
-        /* ── LANDING ── */
-        #landing {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            position: relative;
-        }
-
-        .landing-inner {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 460px;
-            text-align: center;
-        }
-
-        .landing-inner .tagline {
-            margin-bottom: 44px;
-        }
-
-        /* ── ROOM ── */
-        #room {
-            display: none;
-            flex-direction: column;
-            height: 100vh;
-            height: 100dvh;
-        }
-
-        .room-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--border);
-            background: var(--surface);
-            flex-shrink: 0;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .room-logo {
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 20px;
-            letter-spacing: -.5px;
-        }
-
-        .room-logo span {
-            color: var(--accent);
-        }
-
-        .room-code-badge {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-family: 'Syne', sans-serif;
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: border-color .2s;
-            flex-shrink: 0;
-        }
-
-        .room-code-badge:hover {
-            border-color: var(--accent);
-        }
-
-        .sync-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-
-        .sync-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #4ade80;
-            animation: pulse 2s infinite;
-        }
-
-        .sync-dot.alone {
-            background: var(--muted);
-            animation: none;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: .4
-            }
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .chat-toggle-btn {
-            background: none;
-            border: none;
-            color: var(--muted);
-            cursor: pointer;
-            font-size: 11px;
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            letter-spacing: .5px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: all .2s;
-        }
-
-        .chat-toggle-btn:hover {
-            color: var(--text);
-            background: var(--surface2);
-        }
-
-        .room-body {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        /* ── VIDEO ── */
-        .video-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #000;
-            min-width: 0;
-        }
-
-        .video-wrapper {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            background: #000;
-            min-height: 0;
-        }
-
-        video {
-            max-width: 100%;
-            max-height: 100%;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: none;
-        }
-
-        .upload-zone {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            gap: 14px;
-            transition: background .2s;
-        }
-
-        .upload-zone:hover {
-            background: rgba(232, 255, 71, .03);
-        }
-
-        .upload-icon {
-            width: 68px;
-            height: 68px;
-            border-radius: 50%;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            transition: all .2s;
-        }
-
-        .upload-zone:hover .upload-icon {
-            border-color: var(--accent);
-            transform: scale(1.05);
-        }
-
-        .upload-text {
-            font-family: 'Syne', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .upload-subtext {
-            font-size: 13px;
-            color: var(--muted);
-            text-align: center;
-            max-width: 240px;
-            line-height: 1.6;
-        }
-
-        .upload-btn-small {
-            background: var(--accent);
-            color: #0a0a0f;
-            border: none;
-            border-radius: 10px;
-            padding: 9px 18px;
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        #fileInput {
-            display: none;
-        }
-
-        .file-name-bar {
-            background: rgba(232, 255, 71, .08);
-            border-bottom: 1px solid rgba(232, 255, 71, .15);
-            padding: 5px 14px;
-            font-size: 12px;
-            color: var(--accent);
-            display: none;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-            font-family: 'Syne', sans-serif;
-            font-weight: 600;
-        }
-
-        .change-file-btn {
-            background: none;
-            border: 1px solid rgba(232, 255, 71, .3);
-            color: var(--accent);
-            border-radius: 6px;
-            padding: 2px 10px;
-            font-size: 11px;
-            cursor: pointer;
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-        }
-
-        .change-file-btn:hover {
-            background: rgba(232, 255, 71, .1);
-        }
-
-        /* ── TOOLBAR ── */
-        .toolbar {
-            background: rgba(10, 10, 15, .97);
-            backdrop-filter: blur(12px);
-            border-top: 1px solid rgba(255, 255, 255, .05);
-            flex-shrink: 0;
-            transition: opacity .3s ease;
-opacity: 1;
-        }
-
-        .progress-row {
-            padding: 10px 16px 2px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .progress-bar {
-            flex: 1;
-            height: 4px;
-            background: rgba(255, 255, 255, .15);
-            border-radius: 2px;
-            cursor: pointer;
-            position: relative;
-            transition: height .15s;
-        }
-
-        .progress-bar:hover {
-            height: 6px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--accent);
-            border-radius: 2px;
-            pointer-events: none;
-        }
-
-        .progress-thumb {
-            position: absolute;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            width: 12px;
-            height: 12px;
-            background: var(--accent);
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity .15s;
-            pointer-events: none;
-        }
-
-        .progress-bar:hover .progress-thumb {
-            opacity: 1;
-        }
-
-        .time-display {
-            font-size: 11px;
-            color: var(--muted);
-            font-variant-numeric: tabular-nums;
-            letter-spacing: .5px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .controls-row {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 10px 8px;
-        }
-
-        .ctrl-btn {
-            background: none;
-            border: none;
-            color: var(--text);
-            cursor: pointer;
-            padding: 7px;
-            border-radius: 8px;
-            font-size: 17px;
-            transition: all .15s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            flex-shrink: 0;
-        }
-
-        .ctrl-btn:hover {
-            background: rgba(255, 255, 255, .1);
-        }
-
-        .ctrl-btn.play-btn {
-            background: var(--accent);
-            color: #000;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            font-size: 16px;
-        }
-
-        .ctrl-btn.play-btn:hover {
-            transform: scale(1.06);
-        }
-
-        .ctrl-spacer {
-            flex: 1;
-        }
-
-        .volume-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 72px;
-            height: 3px;
-            background: rgba(255, 255, 255, .2);
-            border-radius: 2px;
-            outline: none;
-            cursor: pointer;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 12px;
-            height: 12px;
-            background: var(--text);
-            border-radius: 50%;
-        }
-
-        /* ── CHAT ── */
-        .chat-panel {
-            width: 290px;
-            flex-shrink: 0;
-            background: var(--surface);
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            transition: width .3s;
-        }
-
-        .chat-panel.collapsed {
-            width: 0;
-            overflow: hidden;
-        }
-
-        .chat-header {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border);
-            font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            scroll-behavior: smooth;
-        }
-
-        .chat-messages::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 2px;
-        }
-
-        .msg {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            animation: msgIn .2s ease;
-        }
-
-        @keyframes msgIn {
-            from {
-                opacity: 0;
-                transform: translateY(6px)
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0)
-            }
-        }
-
-        .msg.mine {
-            align-items: flex-end;
-        }
-
-        .msg.theirs {
-            align-items: flex-start;
-        }
-
-        .msg.system {
-            align-items: center;
-        }
-
-        .msg-name {
-            font-size: 11px;
-            color: var(--muted);
-            font-weight: 500;
-        }
-
-        .msg-bubble {
-            padding: 8px 12px;
-            border-radius: 14px;
-            font-size: 13px;
-            line-height: 1.5;
-            max-width: 210px;
-            word-break: break-word;
-        }
-
-        .mine .msg-bubble {
-            background: var(--accent);
-            color: #000;
-            border-bottom-right-radius: 4px;
-        }
-
-        .theirs .msg-bubble {
-            background: var(--surface2);
-            color: var(--text);
-            border-bottom-left-radius: 4px;
-        }
-
-        .system .msg-bubble {
-            background: transparent;
-            color: var(--muted);
-            font-size: 11px;
-            text-align: center;
-            font-style: italic;
-        }
-
-        .chat-input-area {
-            padding: 10px 14px;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-
-        .chat-input {
-            flex: 1;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 9px 12px;
-            color: var(--text);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            outline: none;
-            transition: border-color .2s;
-        }
-
-        .chat-input:focus {
-            border-color: rgba(232, 255, 71, .4);
-        }
-
-        .chat-input::placeholder {
-            color: var(--muted);
-        }
-
-        .send-btn {
-            background: var(--accent);
-            color: #000;
-            border: none;
-            border-radius: 10px;
-            width: 36px;
-            height: 36px;
-            cursor: pointer;
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .send-btn:hover {
-            transform: scale(1.05);
-        }
-
-        /* ── TOAST ── */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            left: 50%;
-            transform: translateX(-50%) translateY(20px);
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 10px 20px;
-            font-size: 13px;
-            color: var(--text);
-            z-index: 10000;
-            opacity: 0;
-            transition: all .3s;
-            pointer-events: none;
-            white-space: nowrap;
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        @media(max-width:640px) {
-            .chat-panel {
-                display: none;
-            }
-
-            .chat-panel.mobile-open {
-                display: flex;
-                position: fixed;
-                inset: 0;
-                width: 100%;
-                z-index: 100;
-            }
-
-            .vol-range {
-                display: none;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>Together — Watch Party</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0a0a'/%3E%3Crect x='.5' y='.5' width='31' height='31' rx='7.5' fill='none' stroke='%23ffffff' stroke-opacity='.25'/%3E%3Cpath d='M12 9.5v13l10.5-6.5z' fill='%23f2f2f2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* monochrome */
+  --bg:#0a0a0a; --s1:#111111; --s2:#181818; --s3:#222222; --s4:#2c2c2c;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16); --line3:rgba(255,255,255,.32);
+  --text:#f2f2f2; --muted:#8c8c8c; --dim:#5a5a5a;
+  --accent:#f2f2f2; --accent-ink:#0a0a0a;
+  --warn:#e8c26a; --bad:#ff7a7a;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --sans:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sub-scale:1;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body{overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+svg{width:1em;height:1em;flex-shrink:0}
+::selection{background:#fff;color:#000}
+:focus-visible{outline:1px solid var(--line3);outline-offset:2px}
+
+.brand{font-family:var(--sans);font-weight:600;font-size:clamp(44px,10vw,68px);letter-spacing:-.055em;line-height:1;color:var(--text);text-decoration:none}
+.brand span{color:var(--dim)}
+.brand.sm{font-size:19px;letter-spacing:-.04em}
+.mono,.label{font-family:var(--mono)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border-radius:10px;padding:12px 18px;font-family:var(--sans);font-weight:600;font-size:15px;letter-spacing:-.005em;transition:transform .15s var(--ease),background .2s,border-color .2s,color .2s,box-shadow .2s}
+.btn.big{width:100%;padding:15px 20px;font-size:15.5px}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.08)}
+.btn.primary:active{transform:scale(.99)}
+.btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--text)}
+.btn.ghost:hover{border-color:var(--line3);background:rgba(255,255,255,.03)}
+.btn svg{width:17px;height:17px}
+
+.toast{position:fixed;left:50%;top:16px;transform:translate(-50%,-10px);background:#161616;border:1px solid var(--line2);border-radius:10px;padding:10px 16px;font-size:13.5px;z-index:1000;opacity:0;pointer-events:none;transition:all .25s var(--ease);max-width:calc(100vw - 32px);box-shadow:0 16px 40px rgba(0,0,0,.6)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ── landing ── */
+.screen{height:100vh;height:100dvh}
+.landing{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;position:relative;overflow:auto}
+.glow{position:fixed;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:44px 44px;background-position:center center;
+  -webkit-mask-image:radial-gradient(ellipse 60% 55% at 50% 45%,#000 20%,transparent 75%);mask-image:radial-gradient(ellipse 60% 55% at 50% 45%,#000 20%,transparent 75%)}
+.glow::after{content:'';position:absolute;left:50%;top:42%;width:520px;height:320px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(255,255,255,.07),transparent);filter:blur(10px)}
+.land-card{position:relative;width:100%;max-width:392px;text-align:center}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);margin-bottom:18px;display:inline-flex;align-items:center;gap:10px}
+.kicker::before,.kicker::after{content:'';width:22px;height:1px;background:var(--line2)}
+.tag{color:var(--muted);margin:14px 0 38px;font-size:15px;letter-spacing:-.005em}
+.field{display:block;text-align:left;margin-bottom:12px}
+.field span{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin:0 0 8px 2px}
+.field input,.join input,.modal input{width:100%;background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:16px;outline:none;transition:border-color .2s,background .2s}
+.field input:focus,.join input:focus,.modal input:focus{border-color:var(--line3);background:var(--s2)}
+input::placeholder{color:var(--dim)}
+.or{display:flex;align-items:center;gap:12px;color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;margin:24px 0}
+.or::before,.or::after{content:'';flex:1;height:1px;background:var(--line)}
+.join{display:flex;gap:10px}
+.join input{letter-spacing:.34em;text-transform:uppercase;font-family:var(--mono);font-weight:500;text-align:center}
+.join input::placeholder{letter-spacing:.2em;font-weight:400}
+.join .btn{flex-shrink:0}
+.err{color:var(--bad);font-size:13px;margin-top:14px;line-height:1.55}
+.foot{position:relative;color:var(--dim);font-size:12.5px;margin-top:44px;text-align:center;max-width:340px;line-height:1.6}
+
+/* ── modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{width:100%;max-width:380px;background:var(--s1);border:1px solid var(--line2);border-radius:16px;padding:28px 24px;animation:pop .25s var(--ease)}
+.modal h3{font-size:20px;font-weight:600;letter-spacing:-.02em;margin:18px 0 6px}
+.modal h3 b{font-family:var(--mono);font-weight:500;letter-spacing:.14em;color:var(--text)}
+.modal p{color:var(--muted);font-size:14px;margin-bottom:18px}
+.modal input{margin-bottom:12px}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+
+/* ── room ── */
+.room{display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;min-height:56px}
+.grow{flex:1}
+.chip{display:inline-flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--line2);border-radius:8px;padding:6px 11px;font-family:var(--mono);font-weight:500;font-size:12.5px;letter-spacing:.18em;transition:border-color .2s,background .2s}
+.chip:hover{border-color:var(--line3);background:rgba(255,255,255,.03)}
+.chip svg{width:14px;height:14px;color:var(--muted)}
+.presence{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-width:0}
+.presence span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presence .dot{width:7px;height:7px;border-radius:50%;background:var(--s4);flex-shrink:0;border:1px solid var(--line2)}
+.presence.on .dot{background:#fff;border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.12);animation:pulse 2.4s ease-in-out infinite}
+.presence.on{color:var(--text)}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(255,255,255,0)}}
+.pill{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;padding:5px 9px;border-radius:6px;white-space:nowrap;border:1px solid}
+.pill.warn{color:var(--warn);border-color:rgba(232,194,106,.35)}
+.pill.live{color:var(--text);border-color:var(--line3);display:inline-flex;align-items:center;gap:7px}
+.pill.live::before{content:'';width:6px;height:6px;border-radius:50%;background:#fff;animation:blink 1.6s steps(2,start) infinite}
+@keyframes blink{to{opacity:.25}}
+.icon-btn{position:relative;width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s}
+.icon-btn:hover{background:var(--s2);color:var(--text)}
+.icon-btn.on{color:var(--text);background:var(--s2)}
+.icon-btn svg{width:19px;height:19px}
+.icon-btn.sm{width:32px;height:32px}
+.icon-btn.sm svg{width:15px;height:15px}
+.badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:#fff;color:#000;font-family:var(--mono);font-size:9.5px;font-weight:600;display:flex;align-items:center;justify-content:center;line-height:1}
+
+.main{flex:1;display:flex;min-height:0;background:#000}
+
+/* ── stage / player ── */
+.stage{position:relative;flex:1;min-width:0;background:#000;overflow:hidden;container-type:size;user-select:none;-webkit-user-select:none}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:block}
+.hit{position:absolute;inset:0;z-index:1}
+.stage.idle,.stage.idle .hit{cursor:none}
+
+.empty{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:24px;background:#070707;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:36px 36px;background-position:center}
+.empty::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 55% 60% at 50% 50%,rgba(7,7,7,.2),#070707 80%);pointer-events:none}
+.empty.drag{outline:1px dashed var(--line3);outline-offset:-14px}
+.empty.drag .empty-icon{border-color:#fff;transform:scale(1.05)}
+.empty-inner{position:relative;text-align:center;max-width:390px;width:100%}
+.empty-icon{width:72px;height:72px;margin:0 auto 20px;border-radius:18px;background:var(--s1);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;color:var(--text);transition:all .2s var(--ease);position:relative}
+.empty-icon::after{content:'';position:absolute;inset:-7px;border-radius:23px;border:1px solid var(--line)}
+.empty-icon svg{width:34px;height:34px}
+.empty h2{font-size:23px;font-weight:600;letter-spacing:-.03em;margin-bottom:8px}
+.empty p{color:var(--muted);font-size:14px;line-height:1.65;margin-bottom:22px}
+.empty p b{color:var(--text);font-weight:500;word-break:break-word}
+.empty-actions{display:flex;flex-direction:column;gap:10px;align-items:center}
+.empty .btn{max-width:300px}
+.stage:not(.loaded) .controls,.stage:not(.loaded) .center-play{display:none}
+
+/* subtitles */
+.subs,.subs-top{position:absolute;left:4%;right:4%;z-index:3;display:flex;flex-direction:column;align-items:center;gap:.25em;pointer-events:none;font-size:calc(var(--sub-scale) * clamp(15px, 4.4cqh, 46px));font-family:var(--sans)}
+.subs{bottom:6%;transition:bottom .25s var(--ease)}
+.subs-top{top:6%}
+.stage.ui .subs{bottom:calc(6% + 70px)}
+.subs .cue,.subs-top .cue{max-width:100%;text-align:center;line-height:1.3;font-weight:500;color:#fff;background:rgba(0,0,0,.6);padding:.1em .45em;border-radius:.18em;text-shadow:0 1px 2px rgba(0,0,0,.9);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+
+/* overlays — solid tints only (no backdrop blur over moving video: it costs the GPU every frame) */
+.flash{position:absolute;left:50%;top:50%;width:80px;height:80px;margin:-40px 0 0 -40px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;z-index:4;opacity:0;pointer-events:none;color:#fff}
+.flash svg{width:34px;height:34px}
+.flash.go{animation:flash .6s var(--ease)}
+@keyframes flash{0%{opacity:1;transform:scale(.85)}100%{opacity:0;transform:scale(1.3)}}
+.ripple{position:absolute;top:0;bottom:0;width:32%;z-index:4;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;color:#fff}
+.ripple svg{width:38px;height:38px}
+.ripple.left{left:0;background:radial-gradient(circle at 0% 50%,rgba(255,255,255,.12),transparent 70%)}
+.ripple.right{right:0;background:radial-gradient(circle at 100% 50%,rgba(255,255,255,.12),transparent 70%)}
+.ripple.go{animation:ripple .55s ease-out}
+@keyframes ripple{0%{opacity:1}100%{opacity:0}}
+.spinner{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:2px solid rgba(255,255,255,.14);border-top-color:#fff;animation:spin .8s linear infinite;z-index:4;pointer-events:none;opacity:0;transition:opacity .2s}
+.stage.buffering .spinner,.stage.connecting .spinner{opacity:1}
+@keyframes spin{to{transform:rotate(360deg)}}
+.center-play{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.22);color:#fff;display:none;align-items:center;justify-content:center;z-index:5;transition:opacity .25s}
+.center-play svg{width:30px;height:30px}
+.touch .center-play{display:flex;opacity:0;pointer-events:none}
+.touch .stage.ui .center-play{opacity:1;pointer-events:auto}
+.tap{position:absolute;inset:0;z-index:8;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:24px}
+.tap .btn{max-width:300px}
+
+.activity{position:absolute;top:14px;left:14px;z-index:5;display:flex;flex-direction:column;gap:6px;align-items:flex-start;pointer-events:none}
+.activity div{background:rgba(8,8,8,.88);border:1px solid var(--line2);border-radius:8px;padding:7px 12px;font-size:13px;animation:slideIn .3s var(--ease);transition:opacity .4s}
+.activity div b{color:#fff;font-weight:600}
+.activity div.out{opacity:0}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.bubbles{position:absolute;top:14px;right:14px;z-index:5;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;max-width:min(320px,60%)}
+.bubbles div{background:rgba(8,8,8,.9);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;font-size:14px;line-height:1.4;animation:slideIn .3s var(--ease);transition:opacity .5s;word-break:break-word}
+.bubbles div b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:2px}
+.bubbles div.out{opacity:0}
+.banner{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:7;background:rgba(14,14,14,.97);border:1px solid var(--line2);border-radius:12px;padding:13px 14px;font-size:13.5px;line-height:1.55;width:min(520px,calc(100% - 28px));box-shadow:0 16px 40px rgba(0,0,0,.6)}
+.banner b{font-weight:600}
+.banner .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.banner .btn{padding:8px 12px;font-size:13px}
+.fx{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+.fx span{position:absolute;bottom:70px;font-size:clamp(28px,6cqh,52px);animation:floatUp 2.6s cubic-bezier(.3,.6,.4,1) forwards}
+.fx span i{position:absolute;left:50%;top:100%;transform:translateX(-50%);font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.7);padding:1px 6px;border-radius:5px;white-space:nowrap}
+@keyframes floatUp{0%{opacity:0;transform:translateY(20px) scale(.6)}12%{opacity:1;transform:translateY(0) scale(1.1)}80%{opacity:1}100%{opacity:0;transform:translateY(-55cqh) scale(1)}}
+
+/* controls */
+.controls{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:44px 14px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:linear-gradient(to top,rgba(0,0,0,.88),rgba(0,0,0,.5) 55%,transparent);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s var(--ease);pointer-events:none}
+.stage.ui .controls{opacity:1;transform:none;pointer-events:auto}
+.seek{position:relative;height:18px;display:flex;align-items:center;cursor:pointer;touch-action:none;margin:0 4px}
+.track{position:relative;width:100%;height:3px;border-radius:3px;background:rgba(255,255,255,.18);transition:height .15s}
+.seek:hover .track,.seek.drag .track{height:5px}
+.buf{position:absolute;inset:0 auto 0 0;border-radius:3px;background:rgba(255,255,255,.3);width:0}
+.fill{position:absolute;inset:0 auto 0 0;border-radius:3px;background:#fff;width:0;box-shadow:0 0 12px rgba(255,255,255,.35)}
+.knob{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#fff;left:0;transform:scale(0);transition:transform .15s;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
+.seek:hover .knob,.seek.drag .knob,.touch .knob{transform:scale(1)}
+.tip{position:absolute;bottom:22px;left:0;transform:translateX(-50%);background:#0e0e0e;border:1px solid var(--line2);border-radius:6px;padding:3px 8px;font-family:var(--mono);font-size:11.5px;opacity:0;pointer-events:none;transition:opacity .15s;white-space:nowrap}
+.seek:hover .tip,.seek.drag .tip{opacity:1}
+.row{display:flex;align-items:center;gap:2px;margin-top:4px}
+.cbtn{position:relative;width:42px;height:42px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.88);transition:background .15s,color .15s}
+.cbtn:hover{background:rgba(255,255,255,.1);color:#fff}
+.cbtn svg{width:21px;height:21px}
+.cbtn.on{color:#fff;background:rgba(255,255,255,.12)}
+.cbtn.play{width:44px;height:44px;border-radius:50%;background:#fff;color:#000;margin-right:6px}
+.cbtn.play:hover{background:#fff;transform:scale(1.05)}
+.cbtn.play svg{width:20px;height:20px}
+.cbtn .badge{top:3px;right:3px}
+#castBtn.on::after{content:'';position:absolute;inset:6px;border-radius:8px;border:1px solid rgba(255,255,255,.5);animation:ring 1.8s ease-out infinite}
+@keyframes ring{0%{opacity:.9;transform:scale(.85)}100%{opacity:0;transform:scale(1.25)}}
+.cc-dot{position:absolute;bottom:8px;left:50%;width:14px;height:2px;margin-left:-7px;border-radius:2px;background:#fff}
+.vol{display:flex;align-items:center}
+.vol input{width:0;opacity:0;transition:width .2s var(--ease),opacity .2s;-webkit-appearance:none;appearance:none;height:3px;border-radius:3px;background:linear-gradient(to right,#fff var(--v,100%),rgba(255,255,255,.22) var(--v,100%));outline:none;cursor:pointer}
+.vol:hover input,.vol input:focus{width:80px;opacity:1;margin:0 8px 0 2px}
+.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;border:0}
+.vol input::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#fff;border:0}
+.time{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.9);margin-left:8px;white-space:nowrap;letter-spacing:.02em}
+.time .sep{color:rgba(255,255,255,.35);margin:0 6px}
+
+/* popovers */
+.pop-wrap{position:relative}
+.pop{position:absolute;bottom:52px;right:0;background:#0f0f0f;border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.7);z-index:20;animation:pop .18s var(--ease)}
+.react-pop{display:flex;gap:2px;padding:6px}
+.react-pop button{width:42px;height:42px;font-size:23px;border-radius:9px;transition:transform .12s,background .12s}
+.react-pop button:hover{background:rgba(255,255,255,.08);transform:scale(1.14)}
+.menu{width:300px;max-height:min(70cqh,460px);overflow:auto;padding:8px;font-size:14px}
+.menu h4{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);padding:10px 10px 6px}
+.menu h4:first-child{padding-top:4px}
+.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;border-radius:8px;line-height:1.3}
+.opt:hover:not(:disabled){background:rgba(255,255,255,.06)}
+.opt:disabled{opacity:.4;cursor:default}
+.opt .ck{width:15px;height:15px;color:#fff;opacity:0}
+.opt.sel .ck{opacity:1}
+.opt .lbl{flex:1;min-width:0}
+.opt small{display:block;color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;margin-top:2px}
+.menu .note{font-size:12.5px;color:var(--muted);padding:6px 10px 8px;line-height:1.5}
+.menu .note.warn{color:var(--warn)}
+.menu .prog{height:2px;background:rgba(255,255,255,.1);border-radius:2px;margin:4px 10px 8px;overflow:hidden}
+.menu .prog div{height:100%;background:#fff;width:0;transition:width .3s}
+.stepper{display:flex;align-items:center;justify-content:space-between;padding:4px 10px 6px}
+.stepper span{color:var(--muted);font-size:13px}
+.stepper .ctl{display:flex;align-items:center;gap:6px}
+.stepper .ctl b{min-width:56px;text-align:center;font-family:var(--mono);font-size:12.5px;font-weight:500}
+.stepper button{width:30px;height:28px;border-radius:7px;border:1px solid var(--line2);font-weight:600}
+.stepper button:hover{background:rgba(255,255,255,.06);border-color:var(--line3)}
+.menu hr{border:0;height:1px;background:var(--line);margin:6px 4px}
+
+/* ── chat ── */
+.chat{width:320px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--line);transition:margin-right .3s var(--ease)}
+.chat.closed{margin-right:-320px}
+.chat-head{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 10px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);flex-shrink:0;min-height:52px}
+.msgs{flex:1;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:3px;overscroll-behavior:contain}
+.msgs::-webkit-scrollbar{width:6px}
+.msgs::-webkit-scrollbar-thumb{background:var(--s3);border-radius:3px}
+.m{display:flex;flex-direction:column;max-width:85%;animation:slideIn .2s var(--ease)}
+.m.me{align-self:flex-end;align-items:flex-end}
+.m .who{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:10px 4px 4px}
+.m .b{padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.45;word-break:break-word;background:var(--s2);border:1px solid var(--line)}
+.m.me .b{background:#ececec;color:#0a0a0a;border-color:#ececec}
+.m.them .b{border-bottom-left-radius:5px}
+.m.me .b{border-bottom-right-radius:5px}
+.m.emoji .b{background:none;border:0;font-size:32px;padding:0 4px;line-height:1.2}
+.sys{align-self:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim);padding:6px 8px;text-align:center;line-height:1.5}
+.chat-form{display:flex;gap:8px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);flex-shrink:0}
+.chat-form input{flex:1;min-width:0;background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px;outline:none}
+.chat-form input:focus{border-color:var(--line3)}
+.send{width:42px;height:42px;border-radius:10px;background:#f2f2f2;color:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.send:hover{background:#fff}
+.send svg{width:17px;height:17px}
+
+/* ── fullscreen ── */
+.main:fullscreen{background:#000}
+.main:-webkit-full-screen{background:#000}
+#chatBtn2{display:none}
+.is-fs #chatBtn2{display:flex}
+
+/* ── responsive ── */
+@media (max-width:760px){
+  .topbar{gap:8px;padding:8px 10px;padding-top:max(8px,env(safe-area-inset-top));min-height:52px}
+  .brand.sm{font-size:17px}
+  .presence{font-size:12px}
+  .pill{font-size:9.5px;padding:4px 7px}
+  .main{flex-direction:column}
+  .stage{flex:none;aspect-ratio:16/9;max-height:62vh;width:100%}
+  .stage:not(.loaded){aspect-ratio:auto;height:min(62vh,460px)}
+  .chat{width:100%;flex:1;min-height:0;border-left:0;border-top:1px solid var(--line)}
+  .chat.closed{margin-right:0;display:none}
+  .chat-head{display:none}
+  .vol input{display:none}
+  .time{font-size:11px;margin-left:4px}
+  .cbtn{width:36px;height:38px}
+  .cbtn svg{width:19px;height:19px}
+  .cbtn.play{width:38px;height:38px}
+  #backBtn,#fwdBtn,.vol{display:none}
+  .controls{padding:30px 8px 6px}
+  .menu{width:min(300px,calc(100vw - 24px));position:fixed;right:12px;bottom:auto;top:60px;max-height:calc(100dvh - 80px)}
+  .is-fs .stage{aspect-ratio:auto;max-height:none;height:100%;flex:1}
+  .is-fs .chat{display:none}
+  .empty h2{font-size:20px}
+  .empty p{font-size:13px;margin-bottom:16px}
+  .empty-icon{width:56px;height:56px;margin-bottom:14px;border-radius:14px}
+  .empty-icon::after{display:none}
+  .empty-icon svg{width:26px;height:26px}
+}
+@media (max-width:760px) and (orientation:landscape){
+  .topbar{display:none}
+  .main{flex-direction:row}
+  .stage{aspect-ratio:auto;max-height:none;height:100%;flex:1}
+  .chat{width:280px;flex:none;border-left:1px solid var(--line);border-top:0}
+  .chat.closed{display:none}
+}
+@media (max-width:420px){
+  .presence{max-width:34vw}
+  .chip{padding:5px 8px;font-size:11.5px;letter-spacing:.12em}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+</style>
 </head>
-
 <body>
 
-    <div class="toast" id="toast"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11.1-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect fill="currentColor" x="6" y="4.5" width="4" height="15" rx="1.2"/><rect fill="currentColor" x="14" y="4.5" width="4" height="15" rx="1.2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></g><text x="12.2" y="15.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="DM Sans,sans-serif" fill="currentColor">10</text></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></g><text x="11.8" y="15.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="DM Sans,sans-serif" fill="currentColor">10</text></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9.5v5a1 1 0 0 0 1 1h3l4.3 3.6a.8.8 0 0 0 1.3-.6V5.5a.8.8 0 0 0-1.3-.6L8 8.5H5a1 1 0 0 0-1 1z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M16.5 9a4.5 4.5 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9.5v5a1 1 0 0 0 1 1h3l4.3 3.6a.8.8 0 0 0 1.3-.6V5.5a.8.8 0 0 0-1.3-.6L8 8.5H5a1 1 0 0 0-1 1z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M17 9.5l5 5M22 9.5l-5 5"/></symbol>
+  <symbol id="i-cc" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10.5 10.2a2.3 2.3 0 1 0 0 3.6M17 10.2a2.3 2.3 0 1 0 0 3.6"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></symbol>
+  <symbol id="i-unfull" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.5V17h0A1.5 1.5 0 0 1 4 15.5z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></g></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></g></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path fill="currentColor" d="M3.4 11.1 19.6 4a.9.9 0 0 1 1.2 1.1l-5.4 15.6a.9.9 0 0 1-1.7.1l-2.6-6.3-6.4-2.1a.9.9 0 0 1-.1-1.7z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/></g><circle cx="9" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="10" r="1.3" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-cast" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8.2 15.8a5.4 5.4 0 0 1 0-7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></g></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/></g></symbol>
+</svg>
 
-    <!-- ═══════════════════════════════════════════
-     FIREBASE SETUP SCREEN
-     Shown once if no config is saved
-════════════════════════════════════════════ -->
-    <div id="fbSetup">
-        <div class="glow-orb orb1"></div>
-        <div class="glow-orb orb2"></div>
-        <div class="setup-inner">
-            <div class="logo" style="text-align:center;margin-bottom:4px;">to<span>get</span>her</div>
-            <p class="tagline" style="text-align:center;margin-bottom:32px;">one-time Firebase setup — takes 3 minutes</p>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-            <div class="setup-steps">
-                <div class="step">
-                    <div class="step-content">
-                        <div class="step-title">Create a free Firebase project</div>
-                        <div class="step-desc">Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Add project → give it any name → Continue (disable Analytics if asked) → Create project.</div>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-content">
-                        <div class="step-title">Add a Realtime Database</div>
-                        <div class="step-desc">In your project, go to <strong>Build → Realtime Database → Create database</strong>. Choose any region. Select <strong>"Start in test mode"</strong> → Enable.</div>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-content">
-                        <div class="step-title">Get your web app config</div>
-                        <div class="step-desc">Go to <strong>Project Settings</strong> (gear icon) → scroll to "Your apps" → click <code>&lt;/&gt;</code> (Web) → register app → copy the <code>firebaseConfig</code> object.</div>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-content">
-                        <div class="step-title">Paste your config below</div>
-                        <div class="step-desc">Paste the entire <code>firebaseConfig = { ... }</code> object or just the JSON part.</div>
-                        <textarea class="config-textarea" id="configInput" placeholder='{
-  "apiKey": "AIzaSy...",
-  "authDomain": "your-app.firebaseapp.com",
-  "databaseURL": "https://your-app-default-rtdb.firebaseio.com",
-  "projectId": "your-app",
-  "storageBucket": "your-app.appspot.com",
-  "messagingSenderId": "...",
-  "appId": "..."
-}'></textarea>
-                        <div class="fb-error" id="fbError"></div>
-                    </div>
-                </div>
-            </div>
+<!-- ─────────── LANDING ─────────── -->
+<main id="landing" class="screen landing" hidden>
+  <div class="glow"></div>
+  <div class="land-card">
+    <div class="kicker">Private watch party</div>
+    <div class="brand">to<span>get</span>her</div>
+    <p class="tag">Same video, same second — wherever you both are.</p>
 
-            <button class="btn btn-primary" onclick="saveConfig()">Connect & Continue →</button>
-            <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px;">Config is saved in your browser. Your partner also needs to open this page with their own config saved, or you share the same hosted URL.</p>
+    <label class="field">
+      <span>Your name</span>
+      <input id="nameInput" maxlength="24" placeholder="e.g. Gautam" autocomplete="nickname" spellcheck="false">
+    </label>
+    <button class="btn primary big" id="createBtn">Start a room</button>
+
+    <div class="or"><span>or join one</span></div>
+    <form class="join" id="joinForm" autocomplete="off">
+      <input id="codeInput" placeholder="ROOM CODE" maxlength="6" spellcheck="false" autocapitalize="characters">
+      <button class="btn ghost" type="submit">Join</button>
+    </form>
+    <p class="err" id="landErr" hidden></p>
+  </div>
+  <p class="foot">Nothing is uploaded to a server. Open the video on one device and stream it to the other, or both open your own copy.</p>
+</main>
+
+<!-- ─────────── NAME PROMPT (invite links) ─────────── -->
+<div class="modal-bg" id="nameModal" hidden>
+  <form class="modal" id="nameForm" autocomplete="off">
+    <div class="brand sm">to<span>get</span>her</div>
+    <h3>Joining room <b id="modalCode"></b></h3>
+    <p>What should your partner see you as?</p>
+    <input id="modalName" maxlength="24" placeholder="Your name" autocomplete="nickname" spellcheck="false">
+    <button class="btn primary big" type="submit">Join room</button>
+  </form>
+</div>
+
+<!-- ─────────── ROOM ─────────── -->
+<div id="room" class="screen room" hidden>
+  <header class="topbar">
+    <a class="brand sm" href="./" title="Leave room">to<span>get</span>her</a>
+    <button class="chip" id="shareBtn" title="Copy invite link">
+      <svg><use href="#i-link"/></svg><span id="roomCode">------</span>
+    </button>
+    <div class="presence" id="presence"><span class="dot"></span><span id="presenceText">Waiting for your partner…</span></div>
+    <div class="grow"></div>
+    <span class="pill live" id="streamPill" hidden></span>
+    <span class="pill warn" id="connPill" hidden>Reconnecting…</span>
+    <button class="icon-btn" id="chatToggle" title="Chat (T)" aria-label="Toggle chat">
+      <svg><use href="#i-chat"/></svg><span class="badge" id="unread" hidden>0</span>
+    </button>
+  </header>
+
+  <div class="main" id="main">
+    <section class="stage" id="stage">
+      <video id="video" playsinline webkit-playsinline preload="auto"></video>
+      <div class="hit" id="hit"></div>
+      <div class="subs" id="subs" aria-live="off"></div>
+      <div class="subs-top" id="subsTop" aria-live="off"></div>
+
+      <div class="empty" id="empty">
+        <div class="empty-inner">
+          <div class="empty-icon"><svg><use href="#i-film"/></svg></div>
+          <h2>Pick a video</h2>
+          <p id="emptyHint">MP4, MOV, MKV or WebM — or drop it here.</p>
+          <div class="empty-actions">
+            <button class="btn primary big" id="watchBtn" hidden></button>
+            <button class="btn primary big" id="pickBtn">Choose video</button>
+          </div>
+          <p class="err" id="videoErr" hidden></p>
         </div>
-    </div>
+      </div>
 
-    <!-- ═══════════════════════════════════════════
-     NAME MODAL
-════════════════════════════════════════════ -->
-    <div class="modal-overlay" id="nameModal">
-        <div class="modal">
-            <div class="modal-title">What's your name? 👋</div>
-            <div class="modal-sub">Your partner will see this in the chat.</div>
-            <input type="text" class="text-input" id="nameInput" placeholder="e.g. Gautam" maxlength="20" style="margin-bottom:16px;" autofocus />
-            <button class="btn btn-primary" onclick="setName()">Continue →</button>
+      <div class="banner" id="banner" hidden></div>
+      <div class="activity" id="activity"></div>
+      <div class="bubbles" id="bubbles"></div>
+      <div class="fx" id="fxLayer"></div>
+      <div class="flash" id="flash"><svg><use href="#i-play"/></svg></div>
+      <div class="ripple left" id="rippleL"><svg><use href="#i-back"/></svg></div>
+      <div class="ripple right" id="rippleR"><svg><use href="#i-fwd"/></svg></div>
+      <div class="spinner" id="spinner"></div>
+      <button class="center-play" id="centerPlay" aria-label="Play"><svg><use href="#i-play"/></svg></button>
+      <div class="tap" id="tapOverlay" hidden>
+        <button class="btn primary big" id="tapBtn"><svg><use href="#i-play"/></svg> Tap to join playback</button>
+      </div>
+
+      <div class="controls" id="controls">
+        <div class="seek" id="seek">
+          <div class="track"><div class="buf" id="bufBar"></div><div class="fill" id="fillBar"></div><div class="knob" id="knob"></div></div>
+          <div class="tip" id="seekTip">0:00</div>
         </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════
-     LANDING
-════════════════════════════════════════════ -->
-    <div id="landing" style="display:none;">
-        <div class="glow-orb orb1"></div>
-        <div class="glow-orb orb2"></div>
-        <div class="landing-inner">
-            <div class="logo">to<span>get</span>her</div>
-            <p class="tagline">watch anything with anyone, in perfect sync</p>
-            <div style="height:40px"></div>
-            <div class="card">
-                <div class="card-label">Create a room</div>
-                <button class="btn btn-primary" onclick="createRoom()">Start a watch party →</button>
-            </div>
-            <div class="divider">or join existing</div>
-            <div class="card">
-                <div class="card-label">Join with code</div>
-                <div class="input-group">
-                    <input type="text" class="text-input" id="joinCodeInput" placeholder="Room code" maxlength="6" oninput="this.value=this.value.toUpperCase()" />
-                    <button class="btn btn-secondary join-btn" onclick="joinRoom()">Join</button>
-                </div>
-            </div>
-            <p style="font-size:12px;color:var(--muted);margin-top:8px;cursor:pointer;" onclick="clearConfig()">⚙ Change Firebase config</p>
+        <div class="row">
+          <button class="cbtn play" id="playBtn" title="Play / pause (Space)" aria-label="Play"><svg><use href="#i-play"/></svg></button>
+          <button class="cbtn" id="backBtn" title="Back 10s (J)" aria-label="Back 10 seconds"><svg><use href="#i-back"/></svg></button>
+          <button class="cbtn" id="fwdBtn" title="Forward 10s (L)" aria-label="Forward 10 seconds"><svg><use href="#i-fwd"/></svg></button>
+          <div class="vol">
+            <button class="cbtn" id="muteBtn" title="Mute (M)" aria-label="Mute"><svg><use href="#i-vol"/></svg></button>
+            <input type="range" id="volRange" min="0" max="1" step="0.02" value="1" aria-label="Volume">
+          </div>
+          <div class="time"><span id="curTime">0:00</span><span class="sep">/</span><span id="durTime">0:00</span></div>
+          <div class="grow"></div>
+          <div class="pop-wrap">
+            <button class="cbtn" id="reactBtn" title="React" aria-label="React"><svg><use href="#i-smile"/></svg></button>
+            <div class="pop react-pop" id="reactPop" hidden></div>
+          </div>
+          <div class="pop-wrap">
+            <button class="cbtn" id="ccBtn" title="Subtitles & audio (C)" aria-label="Subtitles"><svg><use href="#i-cc"/></svg><span class="cc-dot" id="ccDot" hidden></span></button>
+            <div class="pop menu" id="ccMenu" hidden></div>
+          </div>
+          <button class="cbtn" id="castBtn" title="Stream this video to your partner" aria-label="Stream to partner"><svg><use href="#i-cast"/></svg><span class="badge" id="castCount" hidden>0</span></button>
+          <button class="cbtn" id="fileBtn" title="Change video" aria-label="Change video"><svg><use href="#i-file"/></svg></button>
+          <button class="cbtn" id="chatBtn2" title="Chat (T)" aria-label="Chat"><svg><use href="#i-chat"/></svg><span class="badge" id="unread2" hidden>0</span></button>
+          <button class="cbtn" id="fsBtn" title="Fullscreen (F)" aria-label="Fullscreen"><svg><use href="#i-full"/></svg></button>
         </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- ═══════════════════════════════════════════
-     ROOM
-════════════════════════════════════════════ -->
-    <div id="room">
-        <div class="room-header">
-            <div class="room-logo">to<span>get</span>her</div>
-            <div class="room-code-badge" onclick="copyRoomLink()">🔗 <span id="roomCodeDisplay">------</span> <span style="opacity:.4;font-size:11px">⎘</span></div>
-            <div class="header-right">
-                <div class="sync-status">
-                    <div class="sync-dot alone" id="syncDot"></div><span id="syncLabel">Waiting for partner</span>
-                </div>
-                <button class="chat-toggle-btn" onclick="toggleChat()" id="chatToggleBtn">💬 Chat</button>
-            </div>
-        </div>
+    <aside class="chat" id="chat">
+      <div class="chat-head">
+        <span>Chat</span>
+        <button class="icon-btn sm" id="chatClose" aria-label="Close chat"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <input id="chatInput" placeholder="Message…" maxlength="400" enterkeyhint="send">
+        <button class="send" type="submit" aria-label="Send"><svg><use href="#i-send"/></svg></button>
+      </form>
+    </aside>
+  </div>
 
-        <div class="room-body">
-            <div class="video-area">
-                <div class="file-name-bar" id="fileNameBar">
-                    <span id="fileNameText"></span>
-                    <button class="change-file-btn" onclick="document.getElementById('fileInput').click()">Change video</button>
-                </div>
-                <div class="video-wrapper" id="videoWrapper">
-                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-                        <div class="upload-icon">🎬</div>
-                        <div class="upload-text">Drop your video here</div>
-                        <div class="upload-subtext">MP4, MKV, MOV, AVI, WebM — any format</div>
-                        <button class="upload-btn-small" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Browse file</button>
-                    </div>
-                    <video id="videoPlayer" playsinline webkit-playsinline></video>
-                </div>
-                <input type="file" id="fileInput" accept="video/*,audio/*" onchange="loadVideo(this)">
+  <input type="file" id="fileInput" accept="video/*,.mkv,.mov,.mp4,.m4v,.webm" hidden>
+  <input type="file" id="subInput" accept=".srt,.vtt,.ass,.ssa" hidden>
+</div>
 
-                <div class="toolbar">
-                    <div class="progress-row">
-                        <div class="progress-bar" id="progressBar">
-                            <div class="progress-fill" id="progressFill" style="width:0%"></div>
-                            <div class="progress-thumb" id="progressThumb" style="left:0%"></div>
-                        </div>
-                        <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
-                    </div>
-                    <div class="controls-row">
-                        <button class="ctrl-btn" onclick="skip(-10)" title="−10s">⏮</button>
-                        <button class="ctrl-btn play-btn" id="playBtn" onclick="togglePlay()">▶</button>
-                        <button class="ctrl-btn" onclick="skip(10)" title="+10s">⏭</button>
-                        <div class="volume-group">
-                            <button class="ctrl-btn" onclick="toggleMute()" id="muteBtn">🔊</button>
-                            <input type="range" class="vol-range" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
-                        </div>
-                        <div class="ctrl-spacer"></div>
-                        <button class="ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
-                        <button class="ctrl-btn" id="mobileChatBtn" onclick="openMobileChat()" style="display:none">💬</button>
-                    </div>
-                </div>
-            </div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script id="subsSrc">
+/* ─────────────────────────────────────────────────────────────
+   Subs — reads subtitle tracks that live INSIDE a local video file
+   (MKV / WebM / MP4 / MOV / M4V) plus external .srt .vtt .ass files.
+   Browsers don't expose embedded subtitle tracks for local files,
+   so we parse the container ourselves. Text subtitles only
+   (SRT, ASS/SSA, WebVTT, mov_text/tx3g). Image subtitles (PGS,
+   VobSub) are listed but can't be rendered.
+   ───────────────────────────────────────────────────────────── */
+(function (root) {
+  'use strict';
 
-            <div class="chat-panel" id="chatPanel">
-                <div class="chat-header">
-                    <span>Chat 💬</span>
-                    <button class="chat-toggle-btn" onclick="toggleChat()">✕</button>
-                </div>
-                <div class="chat-messages" id="chatMessages">
-                    <div class="msg system">
-                        <div class="msg-bubble">Share the room code with your partner ✨</div>
-                    </div>
-                </div>
-                <div class="chat-input-area">
-                    <input type="text" class="chat-input" id="chatInput" placeholder="Say something..." maxlength="200" onkeydown="if(event.key==='Enter')sendChat()" />
-                    <button class="send-btn" onclick="sendChat()">↑</button>
-                </div>
-            </div>
-        </div>
-    </div>
+  // ── text helpers ──────────────────────────────────────────
+  function decodeText(buf) {
+    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    if (u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) return new TextDecoder('utf-8').decode(u8.subarray(3));
+    if (u8[0] === 0xFF && u8[1] === 0xFE) return new TextDecoder('utf-16le').decode(u8.subarray(2));
+    if (u8[0] === 0xFE && u8[1] === 0xFF) return new TextDecoder('utf-16be').decode(u8.subarray(2));
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(u8); }
+    catch (e) { return new TextDecoder('windows-1252').decode(u8); }
+  }
 
-    <!-- ═══════════════════════════════════════════
-     JAVASCRIPT
-════════════════════════════════════════════ -->
-    <script>
-        'use strict';
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-        // ══════════════════════════════════════════════
-        //  GLOBALS
-        // ══════════════════════════════════════════════
-        let myName = '';
-        let roomCode = '';
-        let db = null; // Firebase database instance
-        let roomRef = null; // ref to rooms/{roomCode}
-        let stateRef = null; // ref to rooms/{roomCode}/state
-        let chatRef = null; // ref to rooms/{roomCode}/chat
-        let presRef = null; // ref to rooms/{roomCode}/presence/{myName}
-        let videoLoaded = false;
-        let chatOpen = true;
-        let isSeeking = false; // true while user is dragging progress bar
-        let heartbeatTimer = null;
-        let ignoreNextStateUpdate = false; // set true right after we write state ourselves
+  // SRT / VTT / mov_text text  →  safe HTML (only <i> <b> <u> <br> survive)
+  function plainToCue(t) {
+    const top = /\{\\an[789]\}/.test(t);
+    t = t.replace(/\{\\[^}]*\}/g, '');
+    t = esc(t);
+    t = t.replace(/&lt;(\/?)(i|b|u)&gt;/gi, '<$1$2>');
+    t = t.replace(/&lt;\/?[a-zA-Z0-9.:][^\n]*?&gt;/g, '');
+    t = t.trim().replace(/\r?\n/g, '<br>');
+    return { html: t, top: top };
+  }
 
-        const video = document.getElementById('videoPlayer');
-        let controlsTimeout = null;
+  // ASS/SSA dialogue text → safe HTML
+  function assToCue(t) {
+    if (/\{[^}]*\\p[1-9]/.test(t)) return null; // vector drawing, not text
+    const top = /\{[^}]*\\an[789][^}]*\}/.test(t) || /\{[^}]*\\a(5|6|7)(?![0-9])[^}]*\}/.test(t);
+    const parts = t.split(/(\{[^}]*\})/);
+    let out = '';
+    for (const p of parts) {
+      if (!p) continue;
+      if (p[0] === '{' && p[p.length - 1] === '}') {
+        if (/\\i1/.test(p)) out += '<i>';
+        if (/\\i0/.test(p)) out += '</i>';
+        if (/\\b(1|[5-9]00)(?![0-9])/.test(p)) out += '<b>';
+        if (/\\b0/.test(p)) out += '</b>';
+        if (/\\u1/.test(p)) out += '<u>';
+        if (/\\u0/.test(p)) out += '</u>';
+        continue;
+      }
+      out += esc(p).replace(/\\N|\\n/g, '<br>').replace(/\\h/g, '&nbsp;');
+    }
+    out = out.trim();
+    if (!out || out === '<br>') return null;
+    return { html: out, top: top };
+  }
 
-        // ══════════════════════════════════════════════
-        //  1. FIREBASE CONFIG
-        // ══════════════════════════════════════════════
-        function saveConfig() {
-            const raw = document.getElementById('configInput').value.trim();
-            const errEl = document.getElementById('fbError');
-            errEl.style.display = 'none';
+  function parseTime(s) {
+    const m = String(s).trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:[.,](\d{1,3}))?/);
+    if (!m) return NaN;
+    return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) + (m[4] ? +('0.' + m[4].padEnd(3, '0')) : 0);
+  }
 
-            // Accept either "const firebaseConfig = {...}" or just the JSON object
-            let jsonStr = raw;
-            // Strip variable assignment if present
-            jsonStr = jsonStr.replace(/^.*?=\s*/, '').replace(/;?\s*$/, '').trim();
-            // Convert JS object notation to JSON (handle unquoted keys)
-            jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
-            // Remove trailing commas
-            jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+  // ── external subtitle files ──────────────────────────────
+  function parseSRTorVTT(text) {
+    const cues = [];
+    const blocks = text.replace(/\r\n?/g, '\n').split(/\n{2,}/);
+    for (const b of blocks) {
+      const lines = b.split('\n');
+      const i = lines.findIndex(l => l.includes('-->'));
+      if (i < 0) continue;
+      const [a, rest] = lines[i].split('-->');
+      const start = parseTime(a);
+      const endStr = rest.trim().split(/\s+/)[0];
+      const end = parseTime(endStr);
+      if (isNaN(start) || isNaN(end)) continue;
+      const settings = rest.trim().slice(endStr.length);
+      const body = lines.slice(i + 1).join('\n');
+      const c = plainToCue(body);
+      if (settings && /line:(0|[0-9](\.\d+)?%|1[0-9]%)/.test(settings)) c.top = true;
+      if (c.html) cues.push({ start, end, html: c.html, top: c.top });
+    }
+    return cues;
+  }
 
-            let cfg;
-            try {
-                cfg = JSON.parse(jsonStr);
-            } catch (e) {
-                errEl.textContent = '⚠️ Could not parse config. Make sure you copied the full firebaseConfig object.';
-                errEl.style.display = 'block';
-                return;
-            }
-            if (!cfg.databaseURL) {
-                errEl.textContent = '⚠️ Missing "databaseURL". Did you enable Realtime Database in your Firebase project?';
-                errEl.style.display = 'block';
-                return;
-            }
-            if (!cfg.apiKey) {
-                errEl.textContent = '⚠️ Missing "apiKey". Copy the full firebaseConfig from Project Settings.';
-                errEl.style.display = 'block';
-                return;
-            }
-            localStorage.setItem('together_fb_config', JSON.stringify(cfg));
-            initFirebase(cfg);
-        }
+  function parseASS(text) {
+    const cues = [];
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    let inEvents = false, fmt = null;
+    for (const line of lines) {
+      const l = line.trim();
+      if (/^\[.*\]$/.test(l)) { inEvents = /^\[events\]$/i.test(l); continue; }
+      if (!inEvents) continue;
+      if (/^format\s*:/i.test(l)) { fmt = l.replace(/^format\s*:/i, '').split(',').map(s => s.trim().toLowerCase()); continue; }
+      if (!/^dialogue\s*:/i.test(l)) continue;
+      const f = fmt || ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'];
+      const body = l.replace(/^dialogue\s*:/i, '').trim();
+      const vals = [];
+      let rest = body;
+      for (let k = 0; k < f.length - 1; k++) {
+        const j = rest.indexOf(',');
+        if (j < 0) break;
+        vals.push(rest.slice(0, j)); rest = rest.slice(j + 1);
+      }
+      vals.push(rest);
+      const get = n => vals[f.indexOf(n)];
+      const start = parseTime(get('start')), end = parseTime(get('end'));
+      const c = assToCue(get('text') || '');
+      if (c && !isNaN(start) && !isNaN(end)) cues.push({ start, end, html: c.html, top: c.top });
+    }
+    return cues;
+  }
 
-        function clearConfig() {
-            localStorage.removeItem('together_fb_config');
-            location.reload();
-        }
+  function parseSubtitleFile(name, buf) {
+    const text = decodeText(buf);
+    const cues = /\.(ass|ssa)$/i.test(name) || /^\s*\[Script Info\]/i.test(text) ? parseASS(text) : parseSRTorVTT(text);
+    return finalize(cues);
+  }
 
-        function initFirebase(cfg) {
-            try {
-                // Avoid re-initializing if already done
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(cfg);
+  function finalize(cues) {
+    cues.sort((a, b) => a.start - b.start);
+    for (let i = 0; i < cues.length; i++) {
+      const c = cues[i];
+      if (!(c.end > c.start)) {
+        const next = cues[i + 1];
+        c.end = next ? Math.min(c.start + 6, next.start) : c.start + 4;
+      }
+    }
+    return cues;
+  }
+
+  // ── language labels ──────────────────────────────────────
+  const LANGS = { eng: 'English', en: 'English', hin: 'Hindi', hi: 'Hindi', spa: 'Spanish', es: 'Spanish', fre: 'French', fra: 'French', fr: 'French', ger: 'German', deu: 'German', de: 'German', ita: 'Italian', it: 'Italian', por: 'Portuguese', pt: 'Portuguese', jpn: 'Japanese', ja: 'Japanese', kor: 'Korean', ko: 'Korean', chi: 'Chinese', zho: 'Chinese', zh: 'Chinese', ara: 'Arabic', ar: 'Arabic', rus: 'Russian', ru: 'Russian', tam: 'Tamil', ta: 'Tamil', tel: 'Telugu', te: 'Telugu', mal: 'Malayalam', ml: 'Malayalam', kan: 'Kannada', kn: 'Kannada', ben: 'Bengali', bn: 'Bengali', mar: 'Marathi', mr: 'Marathi', guj: 'Gujarati', gu: 'Gujarati', pan: 'Punjabi', pa: 'Punjabi', urd: 'Urdu', ur: 'Urdu', tur: 'Turkish', tr: 'Turkish', dut: 'Dutch', nld: 'Dutch', nl: 'Dutch', pol: 'Polish', pl: 'Polish', ind: 'Indonesian', id: 'Indonesian', tha: 'Thai', th: 'Thai', vie: 'Vietnamese', vi: 'Vietnamese' };
+  function langName(code) {
+    if (!code) return '';
+    const c = String(code).toLowerCase().split('-')[0];
+    if (c === 'und') return '';
+    return LANGS[c] || code;
+  }
+
+  // ── Matroska (MKV / WebM) ────────────────────────────────
+  const CHUNK = 8 * 1024 * 1024;
+  const PACE_BYTES_PER_SEC = 40 * 1024 * 1024; // when pacing: leave the disk to the video player
+  class Reader {
+    constructor(file, pace) { this.file = file; this.size = file.size; this.start = 0; this.buf = new Uint8Array(0); this.pace = !!pace; this.chunk = pace ? 4 * 1024 * 1024 : CHUNK; }
+    has(pos, n) { return pos >= this.start && pos + n <= this.start + this.buf.length; }
+    async load(pos, n) {
+      const len = Math.min(Math.max(n, this.chunk), this.size - pos);
+      if (len <= 0) throw new Error('EOF');
+      const t0 = Date.now();
+      this.buf = new Uint8Array(await this.file.slice(pos, pos + len).arrayBuffer());
+      this.start = pos;
+      if (this.buf.length < Math.min(n, this.size - pos)) throw new Error('short read');
+      if (this.pace && len > 65536) {
+        const wait = len / PACE_BYTES_PER_SEC * 1000 - (Date.now() - t0);
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      }
+    }
+    at(pos) { return this.buf[pos - this.start]; }
+    bytes(pos, n) { const o = pos - this.start; return this.buf.subarray(o, o + n); }
+  }
+
+  // reads an EBML variable-length integer out of a Uint8Array
+  function vint(u8, o, isId) {
+    const b = u8[o];
+    if (b === undefined || b === 0) return null;
+    let len = 1, mask = 0x80;
+    while (!(b & mask)) { mask >>= 1; len++; }
+    if (o + len > u8.length) return null;
+    let val = isId ? b : (b & (mask - 1));
+    let allOnes = (b & (mask - 1)) === mask - 1;
+    for (let i = 1; i < len; i++) { const x = u8[o + i]; val = val * 256 + x; if (x !== 0xFF) allOnes = false; }
+    return { val, len, unknown: !isId && allOnes };
+  }
+  function uint(u8) { let v = 0; for (const x of u8) v = v * 256 + x; return v; }
+  function str(u8) { return new TextDecoder('utf-8').decode(u8).replace(/\0+$/, ''); }
+
+  // iterate child elements inside a fully-loaded buffer
+  function* kids(u8, s, e) {
+    let o = s;
+    while (o < e) {
+      const id = vint(u8, o, true); if (!id) return;
+      const sz = vint(u8, o + id.len, false); if (!sz) return;
+      const ds = o + id.len + sz.len;
+      const de = sz.unknown ? e : Math.min(e, ds + sz.val);
+      yield { id: id.val, s: ds, e: de };
+      o = de;
+    }
+  }
+
+  const TOP_IDS = new Set([0x1F43B675, 0x1C53BB6B, 0x1254C367, 0x1043A770, 0x1941A469, 0x114D9B74, 0x1549A966, 0x1654AE6B]);
+  const MKV_TEXT = { 'S_TEXT/UTF8': 'SRT', 'S_TEXT/ASCII': 'SRT', 'S_TEXT/ASS': 'ASS', 'S_TEXT/SSA': 'SSA', 'S_ASS': 'ASS', 'S_SSA': 'SSA', 'S_TEXT/WEBVTT': 'VTT', 'D_WEBVTT/SUBTITLES': 'VTT', 'D_WEBVTT/CAPTIONS': 'VTT' };
+  const MKV_IMAGE = { 'S_HDMV/PGS': 'PGS', 'S_VOBSUB': 'VobSub', 'S_DVBSUB': 'DVB', 'S_HDMV/TEXTST': 'TextST', 'S_KATE': 'Kate' };
+
+  function parseTracks(u8, s, e) {
+    const out = [];
+    for (const te of kids(u8, s, e)) {
+      if (te.id !== 0xAE) continue;
+      const t = { num: 0, type: 0, codec: '', lang: 'eng', name: '', def: true, forced: false, comp: null };
+      let langBcp = '';
+      for (const c of kids(u8, te.s, te.e)) {
+        const d = u8.subarray(c.s, c.e);
+        switch (c.id) {
+          case 0xD7: t.num = uint(d); break;
+          case 0x83: t.type = uint(d); break;
+          case 0x86: t.codec = str(d); break;
+          case 0x22B59C: t.lang = str(d); break;
+          case 0x22B59D: langBcp = str(d); break;
+          case 0x536E: t.name = str(d); break;
+          case 0x88: t.def = uint(d) === 1; break;
+          case 0x55AA: t.forced = uint(d) === 1; break;
+          case 0x6D80: // ContentEncodings
+            for (const enc of kids(u8, c.s, c.e)) {
+              if (enc.id !== 0x6240) continue;
+              for (const x of kids(u8, enc.s, enc.e)) {
+                if (x.id !== 0x5034) continue;
+                t.comp = { algo: 0, settings: null };
+                for (const y of kids(u8, x.s, x.e)) {
+                  if (y.id === 0x4254) t.comp.algo = uint(u8.subarray(y.s, y.e));
+                  if (y.id === 0x4255) t.comp.settings = u8.slice(y.s, y.e);
                 }
-                db = firebase.database();
-                // Quick connectivity test
-                db.ref('.info/connected').once('value', snap => {
-                    if (snap.val() === false) {
-                        // Not necessarily an error — just offline. Let it proceed.
-                    }
-                });
-                showLanding();
-            } catch (e) {
-                const errEl = document.getElementById('fbError');
-                if (errEl) {
-                    errEl.textContent = '⚠️ Firebase init failed: ' + e.message;
-                    errEl.style.display = 'block';
-                } else {
-                    showToast('Firebase error: ' + e.message);
-                }
+              }
             }
+            break;
         }
+      }
+      if (langBcp) t.lang = langBcp;
+      out.push(t);
+    }
+    return out;
+  }
 
-        function showLanding() {
-            document.getElementById('fbSetup').style.display = 'none';
-            document.getElementById('landing').style.display = 'flex';
-            // Check URL for room code
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get('room');
-            if (code) document.getElementById('joinCodeInput').value = code.toUpperCase();
-            if (window.innerWidth <= 640) {
-                document.getElementById('mobileChatBtn').style.display = 'flex';
-                document.getElementById('chatToggleBtn').style.display = 'none';
-                chatOpen = false;
-            }
-        }
+  async function inflate(u8) {
+    if (typeof DecompressionStream === 'undefined') throw new Error('no zlib');
+    const ds = new DecompressionStream('deflate');
+    const stream = new Blob([u8]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
 
-        // On page load: check for saved config
-        window.onload = () => {
-            const saved = localStorage.getItem('together_fb_config');
-            if (saved) {
-                try {
-                    initFirebase(JSON.parse(saved));
-                    return;
-                } catch (e) {
-                    localStorage.removeItem('together_fb_config');
-                }
-            }
-            // Show setup screen
-            document.getElementById('fbSetup').style.display = 'flex';
-        };
+  async function scanMKV(file, h) {
+    const r = new Reader(file, h.pace);
+    const size = file.size;
+    let scale = 1000000; // ns per tick
+    let subs = null;     // Map trackNum → track
+    let pos = 0;
+    let lastProg = 0;
 
-        // ══════════════════════════════════════════════
-        //  2. NAME
-        // ══════════════════════════════════════════════
-        function setName() {
-            const v = document.getElementById('nameInput').value.trim();
-            if (!v) {
-                showToast('Please enter your name 😊');
-                return;
-            }
-            myName = v;
-            document.getElementById('nameModal').classList.remove('show');
-        }
-        document.getElementById('nameInput').addEventListener('keydown', e => {
-            if (e.key === 'Enter') setName();
-        });
-
-        // ══════════════════════════════════════════════
-        //  3. ROOM — CREATE / JOIN
-        // ══════════════════════════════════════════════
-        function genCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            return Array.from({
-                length: 6
-            }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        }
-
-        function createRoom() {
-            if (!myName) {
-                showNameModal();
-                return;
-            }
-            roomCode = genCode();
-            enterRoom();
-        }
-
-        function joinRoom() {
-            if (!myName) {
-                showNameModal();
-                return;
-            }
-            const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
-            if (code.length < 4) {
-                showToast('Enter a valid room code');
-                return;
-            }
-            roomCode = code;
-            enterRoom();
-        }
-
-        function showNameModal() {
-            document.getElementById('nameModal').classList.add('show');
-            showToast('Enter your name first!');
-        }
-
-        function enterRoom() {
-            document.getElementById('landing').style.display = 'none';
-            document.getElementById('room').style.display = 'flex';
-            document.getElementById('roomCodeDisplay').textContent = roomCode;
-
-            // Update URL
-            const url = new URL(window.location);
-            url.searchParams.set('room', roomCode);
-            window.history.replaceState({}, '', url);
-
-            // Set up Firebase references
-            roomRef = db.ref('rooms/' + roomCode);
-            stateRef = roomRef.child('state');
-            chatRef = roomRef.child('chat');
-            presRef = roomRef.child('presence').child(myName);
-
-            setupPresence();
-            listenToState();
-            listenToChat();
-            listenToPresence();
-
-            addSystemMsg('Room ' + roomCode + ' — share the link with your partner!');
-        }
-
-        // ══════════════════════════════════════════════
-        //  4. PRESENCE — WHO IS IN THE ROOM
-        // ══════════════════════════════════════════════
-        function setupPresence() {
-            // Write our presence
-            const presData = {
-                online: true,
-                name: myName,
-                ts: firebase.database.ServerValue.TIMESTAMP
-            };
-            presRef.set(presData);
-
-            // Auto-remove on disconnect
-            presRef.onDisconnect().update({
-                online: false
-            });
-
-            // Keep alive every 30s
-            setInterval(() => {
-                presRef.update({
-                    ts: firebase.database.ServerValue.TIMESTAMP,
-                    online: true
-                });
-            }, 30000);
-        }
-
-        function listenToPresence() {
-            roomRef.child('presence').on('value', snap => {
-                const presenceData = snap.val() || {};
-                const others = Object.entries(presenceData).filter(([name, data]) => {
-                    return name !== myName && data && data.online === true;
-                });
-                const connected = others.length > 0;
-                updateSyncStatus(connected);
-                if (connected) {
-                    const partnerName = others[0][0];
-                    // Only announce if just joined (check if we already announced)
-                    if (!window._announcedPartners) window._announcedPartners = new Set();
-                    if (!window._announcedPartners.has(partnerName)) {
-                        window._announcedPartners.add(partnerName);
-                        addSystemMsg(partnerName + ' joined the room 👋');
-                        // Send our current state to them
-                        if (videoLoaded) broadcastState('heartbeat');
-                    }
-                }
-            });
-        }
-
-        function updateSyncStatus(connected) {
-            document.getElementById('syncDot').classList.toggle('alone', !connected);
-            document.getElementById('syncLabel').textContent = connected ? 'In sync ✓' : 'Waiting for partner';
-        }
-
-        // ══════════════════════════════════════════════
-        //  5. SYNC STATE — THE CORE ENGINE
-        //
-        //  Data structure in Firebase:
-        //  rooms/{code}/state = {
-        //    time:    <seconds>,     current video position
-        //    playing: <bool>,        is video playing
-        //    by:      <name>,        WHO sent this (CRITICAL for dedup)
-        //    action:  <string>,      'play'|'pause'|'seek'|'heartbeat'
-        //    ts:      <timestamp>    when it was sent
-        //  }
-        //
-        //  Rule #1: ALWAYS ignore events where state.by === myName
-        //           This prevents own-event loops that break playback.
-        //  Rule #2: For 'heartbeat', only correct if drift > 2 seconds.
-        //  Rule #3: For 'play'/'pause'/'seek', apply immediately.
-        // ══════════════════════════════════════════════
-
-        function broadcastState(action) {
-            if (!db || !stateRef) return;
-            const state = {
-                time: video.currentTime,
-                playing: !video.paused,
-                by: myName,
-                action: action,
-                ts: firebase.database.ServerValue.TIMESTAMP
-            };
-            // Set flag BEFORE writing so our own listener ignores it
-            ignoreNextStateUpdate = true;
-            stateRef.set(state).catch(err => {
-                console.error('Firebase write error:', err);
-                ignoreNextStateUpdate = false;
-            });
-        }
-
-        function listenToState() {
-            stateRef.on('value', snap => {
-                const state = snap.val();
-                if (!state) return;
-
-                // ══ RULE #1: Ignore our own writes ══
-                if (state.by === myName) {
-                    ignoreNextStateUpdate = false; // reset flag
-                    return;
-                }
-
-                // Don't apply if video isn't loaded yet
-                if (!videoLoaded) return;
-
-                // ══ Apply based on action ══
-                switch (state.action) {
-
-                    case 'play':
-                        // Set time (if significantly different) then play
-                        if (Math.abs(video.currentTime - state.time) > 0.5) {
-                            video.currentTime = state.time;
-                        }
-                        video.play().catch(() => {});
-                        updatePlayBtn(true);
-                        addSystemMsg(state.by + ' pressed play ▶');
-                        break;
-
-                    case 'pause':
-                        video.currentTime = state.time;
-                        video.pause();
-                        updatePlayBtn(false);
-                        addSystemMsg(state.by + ' paused ⏸');
-                        break;
-
-                    case 'seek':
-                        video.currentTime = state.time;
-                        // Mirror their play/pause state
-                        if (state.playing && video.paused) {
-                            video.play().catch(() => {});
-                            updatePlayBtn(true);
-                        } else if (!state.playing && !video.paused) {
-                            video.pause();
-                            updatePlayBtn(false);
-                        }
-                        addSystemMsg(state.by + ' seeked to ' + fmt(state.time));
-                        break;
-
-                    case 'heartbeat':
-                        // ══ RULE #2: Only correct meaningful drift ══
-                        const drift = Math.abs(video.currentTime - state.time);
-                        if (drift > 8) {
-                            video.currentTime = state.time;
-                            addSystemMsg('⚡ Synced (' + drift.toFixed(1) + 's drift corrected)');
-                        }
-                        // Mirror play/pause state
-                        if (state.playing && video.paused) {
-                            video.play().catch(() => {});
-                            updatePlayBtn(true);
-                        } else if (!state.playing && !video.paused) {
-                            video.pause();
-                            updatePlayBtn(false);
-                        }
-                        break;
-                }
-            });
-        }
-
-        // Heartbeat: send our position every 5 seconds while playing
-        function startHeartbeat() {
-            stopHeartbeat();
-            heartbeatTimer = setInterval(() => {
-                if (videoLoaded && !video.paused && !isSeeking) {
-                    broadcastState('heartbeat');
-                }
-            }, 15000);
-        }
-
-        function stopHeartbeat() {
-            if (heartbeatTimer) {
-                clearInterval(heartbeatTimer);
-                heartbeatTimer = null;
-            }
-        }
-
-        // ══════════════════════════════════════════════
-        //  6. CHAT
-        // ══════════════════════════════════════════════
-        function sendChat() {
-            const input = document.getElementById('chatInput');
-            const text = input.value.trim();
-            if (!text || !chatRef) return;
-            input.value = '';
-            chatRef.push({
-                name: myName,
-                text,
-                ts: firebase.database.ServerValue.TIMESTAMP
-            });
-        }
-
-        // Track the key of the last chat message we added to avoid double-rendering
-        const _addedChatKeys = new Set();
-
-        function listenToChat() {
-            // Only listen to NEW messages from now on
-            const nowTs = Date.now();
-            chatRef.orderByChild('ts').startAt(nowTs).on('child_added', snap => {
-                const msg = snap.val();
-                if (!msg || _addedChatKeys.has(snap.key)) return;
-                _addedChatKeys.add(snap.key);
-                addChatMsg(msg.name, msg.text, msg.name === myName);
-            });
-        }
-
-        // ══════════════════════════════════════════════
-        //  7. VIDEO PLAYER
-        // ══════════════════════════════════════════════
-        function loadVideo(input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            video.pause();
-            if (video.src && video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
-            video.removeAttribute('src');
-            video.load();
-
-            const url = URL.createObjectURL(file);
-            video.src = url;
-            video.muted = false;
-            video.volume = 1;
-            video.load();
-
-            video.style.display = 'block';
-            document.getElementById('uploadZone').style.display = 'none';
-            document.getElementById('fileNameBar').style.display = 'flex';
-            document.getElementById('fileNameText').textContent = file.name;
-            videoLoaded = true;
-
-            video.addEventListener('loadedmetadata', () => {
-                updateTimeDisplay();
-                showToast('🎬 Loaded! Press play when ready.');
-                startHeartbeat();
-            }, {
-                once: true
-            });
-
-            input.value = '';
-        }
-
-        // ── PLAY / PAUSE ──
-        function togglePlay() {
-            if (!videoLoaded) {
-                showToast('Load a video first!');
-                return;
-            }
-            if (video.paused) {
-                video.muted = false;
-                video.play().then(() => {
-                    broadcastState('play');
-                    updatePlayBtn(true);
-                }).catch(() => showToast('Tap again to play ▶'));
-            } else {
-                video.pause();
-                broadcastState('pause');
-                updatePlayBtn(false);
-            }
-        }
-
-        function updatePlayBtn(playing) {
-            document.getElementById('playBtn').textContent = playing ? '⏸' : '▶';
-        }
-
-        // ── SKIP ──
-        function skip(sec) {
-            if (!videoLoaded) return;
-            video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + sec));
-            broadcastState('seek');
-        }
-
-        // ── VOLUME / MUTE ──
-        function toggleMute() {
-            video.muted = !video.muted;
-            document.getElementById('muteBtn').textContent = video.muted ? '🔇' : '🔊';
-            if (!video.muted && video.volume === 0) {
-                video.volume = 1;
-            }
-        }
-
-        function setVolume(val) {
-            video.volume = parseFloat(val);
-            video.muted = parseFloat(val) === 0;
-            document.getElementById('muteBtn').textContent = parseFloat(val) === 0 ? '🔇' : '🔊';
-        }
-
-        // ── PROGRESS BAR ──
-        video.addEventListener('timeupdate', () => {
-            if (!video.duration || isSeeking) return;
-            const pct = (video.currentTime / video.duration) * 100;
-            document.getElementById('progressFill').style.width = pct + '%';
-            document.getElementById('progressThumb').style.left = pct + '%';
-            updateTimeDisplay();
-        });
-
-        video.addEventListener('ended', () => {
-            updatePlayBtn(false);
-            stopHeartbeat();
-        });
-
-        video.addEventListener('play', () => startHeartbeat());
-        video.addEventListener('pause', () => stopHeartbeat());
-
-        function seekTo(e) {
-            if (!videoLoaded || !video.duration) return;
-            const bar = document.getElementById('progressBar');
-            const rect = bar.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            video.currentTime = pct * video.duration;
-            updateTimeDisplay();
-        }
-
-        // Mouse drag
-        let dragging = false;
-        document.getElementById('progressBar').addEventListener('mousedown', e => {
-            dragging = true;
-            isSeeking = true;
-            seekTo(e);
-        });
-        document.addEventListener('mousemove', e => {
-            if (dragging) seekTo(e);
-        });
-        document.addEventListener('mouseup', () => {
-            if (dragging) {
-                dragging = false;
-                isSeeking = false;
-                broadcastState('seek');
-            }
-        });
-
-        // Touch drag
-        document.getElementById('progressBar').addEventListener('touchstart', e => {
-            isSeeking = true;
-            seekTo(e.touches[0]);
-        }, {
-            passive: true
-        });
-        document.getElementById('progressBar').addEventListener('touchmove', e => {
-            e.preventDefault();
-            seekTo(e.touches[0]);
-        }, {
-            passive: false
-        });
-        document.getElementById('progressBar').addEventListener('touchend', () => {
-            isSeeking = false;
-            broadcastState('seek');
-        });
-
-        function updateTimeDisplay() {
-            document.getElementById('timeDisplay').textContent =
-                fmt(video.currentTime) + ' / ' + (video.duration ? fmt(video.duration) : '0:00');
-        }
-
-        function fmt(s) {
-            if (!s || isNaN(s)) return '0:00';
-            return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0');
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) document.querySelector('.video-area').requestFullscreen().catch(() => {});
-            else document.exitFullscreen();
-        }
-
-        // Drag & drop
-        document.getElementById('videoWrapper').addEventListener('dragover', e => {
-            e.preventDefault();
-        });
-        document.getElementById('videoWrapper').addEventListener('drop', e => {
-            e.preventDefault();
-            const f = e.dataTransfer.files[0];
-            if (f && (f.type.startsWith('video/') || f.type.startsWith('audio/'))) {
-                const dt = new DataTransfer();
-                dt.items.add(f);
-                document.getElementById('fileInput').files = dt.files;
-                loadVideo(document.getElementById('fileInput'));
-            }
-        });
-
-        // ── KEYBOARD SHORTCUTS ──
-        document.addEventListener('keydown', e => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            if (e.code === 'Space') {
-                e.preventDefault();
-                togglePlay();
-            }
-            if (e.code === 'ArrowRight') skip(10);
-            if (e.code === 'ArrowLeft') skip(-10);
-            if (e.code === 'KeyM') toggleMute();
-            if (e.code === 'KeyF') toggleFullscreen();
-        });
-
-        // ══════════════════════════════════════════════
-        //  8. CHAT UI
-        // ══════════════════════════════════════════════
-        function addChatMsg(name, text, mine) {
-            const msgs = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = 'msg ' + (mine ? 'mine' : 'theirs');
-            div.innerHTML = `<div class="msg-name">${esc(name)}</div><div class="msg-bubble">${esc(text)}</div>`;
-            msgs.appendChild(div);
-            msgs.scrollTop = msgs.scrollHeight;
-            if (!chatOpen && !mine) showToast('💬 ' + name + ': ' + text);
-        }
-
-        function addSystemMsg(text) {
-            const msgs = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = 'msg system';
-            div.innerHTML = `<div class="msg-bubble">${esc(text)}</div>`;
-            msgs.appendChild(div);
-            msgs.scrollTop = msgs.scrollHeight;
-        }
-
-        function esc(s) {
-            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        // ══════════════════════════════════════════════
-        //  9. UI HELPERS
-        // ══════════════════════════════════════════════
-        function toggleChat() {
-
-    const panel = document.getElementById('chatPanel');
-
-    // MOBILE
-    if (window.innerWidth <= 640) {
-
-        panel.classList.toggle('mobile-open');
-
-        chatOpen = panel.classList.contains('mobile-open');
-
-        return;
+    async function header(p) {
+      if (!r.has(p, 16)) await r.load(p, 16);
+      const u8 = r.buf, o = p - r.start;
+      const id = vint(u8, o, true); if (!id) throw new Error('bad id @' + p);
+      const sz = vint(u8, o + id.len, false); if (!sz) throw new Error('bad size @' + p);
+      const ds = p + id.len + sz.len;
+      return { id: id.val, ds, size: sz.unknown ? -1 : sz.val, de: sz.unknown ? -1 : ds + sz.val };
+    }
+    async function full(el) {
+      const n = el.de - el.ds;
+      if (n > 64 * 1024 * 1024) throw new Error('element too big');
+      if (!r.has(el.ds, n)) await r.load(el.ds, n);
+      return { u8: r.buf, s: el.ds - r.start, e: el.de - r.start };
     }
 
-    // DESKTOP
-    chatOpen = !chatOpen;
-    panel.classList.toggle('collapsed', !chatOpen);
-}
-
-        function openMobileChat() {
-            document.getElementById('chatPanel').classList.add('mobile-open');
-            chatOpen = true;
-        }
-
-        function copyRoomLink() {
-            const url = new URL(window.location);
-            url.searchParams.set('room', roomCode);
-            navigator.clipboard.writeText(url.toString())
-                .then(() => showToast('Invite link copied! 🔗 Share this with your partner'))
-                .catch(() => showToast('Room code: ' + roomCode));
-        }
-
-        function showControls() {
-
-    const toolbar = document.querySelector('.toolbar');
-
-    toolbar.style.opacity = '1';
-    toolbar.style.pointerEvents = 'auto';
-
-    clearTimeout(controlsTimeout);
-
-    if (!video.paused) {
-
-        controlsTimeout = setTimeout(() => {
-
-            toolbar.style.opacity = '0';
-            toolbar.style.pointerEvents = 'none';
-
-        }, 2000);
+    async function handleBlock(blockStart, blockEnd, clusterTc, durTicks) {
+      // peek track number
+      if (!r.has(blockStart, 8)) await r.load(blockStart, Math.min(8, size - blockStart));
+      const tn = vint(r.buf, blockStart - r.start, false);
+      if (!tn) return false;
+      const t = subs.get(tn.val);
+      if (!t) return false;
+      const n = blockEnd - blockStart;
+      if (!r.has(blockStart, n)) await r.load(blockStart, n);
+      const u8 = r.bytes(blockStart, n);
+      const rel = ((u8[tn.len] << 8) | u8[tn.len + 1]) << 16 >> 16; // signed int16
+      const flags = u8[tn.len + 2];
+      if (flags & 0x06) return true; // laced — never used for text subs
+      let payload = u8.slice(tn.len + 3);
+      if (t.comp) {
+        try {
+          if (t.comp.algo === 3 && t.comp.settings) { const m = new Uint8Array(t.comp.settings.length + payload.length); m.set(t.comp.settings); m.set(payload, t.comp.settings.length); payload = m; }
+          else if (t.comp.algo === 0) payload = await inflate(payload);
+          else return true;
+        } catch (e) { return true; }
+      }
+      const start = (clusterTc + rel) * scale / 1e9;
+      const end = durTicks != null ? start + durTicks * scale / 1e9 : NaN;
+      const text = decodeText(payload);
+      let c;
+      if (t.fmt === 'ASS' || t.fmt === 'SSA') {
+        // ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        let rest = text, k = 0;
+        while (k < 8) { const j = rest.indexOf(','); if (j < 0) break; rest = rest.slice(j + 1); k++; }
+        c = assToCue(rest);
+      } else c = plainToCue(text);
+      if (c && c.html) { t.cues.push({ start, end, html: c.html, top: c.top }); t.dirty = true; }
+      return true;
     }
+
+    // EBML header
+    const ebml = await header(0);
+    if (ebml.id !== 0x1A45DFA3) throw new Error('not matroska');
+    pos = ebml.de;
+    const seg = await header(pos);
+    if (seg.id !== 0x18538067) throw new Error('no segment');
+    const segEnd = seg.size < 0 ? size : Math.min(size, seg.de);
+    pos = seg.ds;
+
+    while (pos < segEnd) {
+      if (h.cancelled()) return;
+      const el = await header(pos);
+      const elEnd = el.size < 0 ? segEnd : Math.min(el.de, segEnd);
+
+      if (el.id === 0x1549A966) { // Info
+        const b = await full({ ds: el.ds, de: elEnd });
+        for (const c of kids(b.u8, b.s, b.e)) if (c.id === 0x2AD7B1) scale = uint(b.u8.subarray(c.s, c.e)) || scale;
+        pos = elEnd; continue;
+      }
+      if (el.id === 0x1654AE6B) { // Tracks
+        const b = await full({ ds: el.ds, de: elEnd });
+        const tracks = parseTracks(b.u8, b.s, b.e);
+        subs = new Map();
+        const list = [], audio = [], video = [];
+        tracks.forEach(t => {
+          if (t.type === 0x11) {
+            const fmt = MKV_TEXT[t.codec] || null;
+            const tr = { id: 'mkv' + t.num, num: t.num, fmt: fmt || MKV_IMAGE[t.codec] || t.codec.replace(/^S_(TEXT\/)?/, ''), lang: t.lang, name: t.name, isDefault: t.def, forced: t.forced, supported: !!fmt, comp: t.comp, cues: [], done: false };
+            list.push(tr);
+            if (fmt) subs.set(t.num, tr);
+          } else if (t.type === 2) audio.push({ codec: t.codec, lang: t.lang, name: t.name });
+          else if (t.type === 1) video.push({ codec: t.codec });
+        });
+        h.onInfo({ container: 'mkv', subs: list, audio, video });
+        if (!subs.size) return; // nothing to scan
+        pos = elEnd; continue;
+      }
+      if (el.id === 0x1F43B675) { // Cluster
+        if (!subs) { pos = elEnd; continue; }
+        let cp = el.ds, clusterTc = 0;
+        while (cp < elEnd) {
+          const c = await header(cp);
+          if (el.size < 0 && TOP_IDS.has(c.id)) break; // unknown-size cluster ended
+          const cEnd = c.size < 0 ? elEnd : Math.min(c.de, elEnd);
+          if (c.id === 0xE7) {
+            if (!r.has(c.ds, cEnd - c.ds)) await r.load(c.ds, cEnd - c.ds);
+            clusterTc = uint(r.bytes(c.ds, cEnd - c.ds));
+          } else if (c.id === 0xA3) { // SimpleBlock
+            await handleBlock(c.ds, cEnd, clusterTc, null);
+          } else if (c.id === 0xA0) { // BlockGroup
+            let gp = c.ds, blk = null, dur = null;
+            while (gp < cEnd) {
+              const g = await header(gp);
+              const gEnd = g.size < 0 ? cEnd : Math.min(g.de, cEnd);
+              if (g.id === 0xA1) {
+                if (!r.has(g.ds, 8)) await r.load(g.ds, Math.min(8, size - g.ds));
+                const tn = vint(r.buf, g.ds - r.start, false);
+                if (!tn || !subs.has(tn.val)) { blk = null; break; }
+                blk = [g.ds, gEnd];
+              } else if (g.id === 0x9B) {
+                if (!r.has(g.ds, gEnd - g.ds)) await r.load(g.ds, gEnd - g.ds);
+                dur = uint(r.bytes(g.ds, gEnd - g.ds));
+              }
+              gp = gEnd;
+            }
+            if (blk) await handleBlock(blk[0], blk[1], clusterTc, dur);
+          }
+          cp = cEnd;
+        }
+        pos = cp;
+        if (pos - lastProg > 16 * 1024 * 1024) { lastProg = pos; h.onProgress(pos / size); }
+        continue;
+      }
+      pos = elEnd; // SeekHead, Cues, Tags, Chapters, Attachments, Void …
+    }
+  }
+
+  // ── ISO-BMFF (MP4 / MOV / M4V) ───────────────────────────
+  function fourcc(dv, o) { return String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3)); }
+  function* boxes(dv, s, e) {
+    let o = s;
+    while (o + 8 <= e) {
+      let size = dv.getUint32(o), hdr = 8;
+      const type = fourcc(dv, o + 4);
+      if (size === 1) { size = dv.getUint32(o + 8) * 4294967296 + dv.getUint32(o + 12); hdr = 16; }
+      else if (size === 0) size = e - o;
+      if (size < hdr) return;
+      yield { type, s: o + hdr, e: Math.min(e, o + size) };
+      o += size;
+    }
+  }
+  function child(dv, b, type) { for (const c of boxes(dv, b.s, b.e)) if (c.type === type) return c; return null; }
+  function path(dv, b, types) { for (const t of types) { if (!b) return null; b = child(dv, b, t); } return b; }
+
+  async function scanMP4(file, h) {
+    // find moov among top-level boxes
+    let pos = 0, moov = null;
+    while (pos + 8 <= file.size) {
+      const dv = new DataView(await file.slice(pos, pos + 16).arrayBuffer());
+      let size = dv.getUint32(0), hdr = 8;
+      const type = fourcc(dv, 4);
+      if (size === 1) { size = dv.getUint32(8) * 4294967296 + dv.getUint32(12); hdr = 16; }
+      else if (size === 0) size = file.size - pos;
+      if (size < 8) break;
+      if (type === 'moov') { moov = { pos, size, hdr }; break; }
+      pos += size;
+    }
+    if (!moov) throw new Error('no moov');
+    if (moov.size > 300 * 1024 * 1024) throw new Error('moov too big');
+    const buf = await file.slice(moov.pos, moov.pos + moov.size).arrayBuffer();
+    const dv = new DataView(buf);
+    const root = { s: moov.hdr, e: moov.size };
+
+    let movieScale = 1000;
+    const mvhd = child(dv, root, 'mvhd');
+    if (mvhd) movieScale = dv.getUint32(mvhd.s + (dv.getUint8(mvhd.s) === 1 ? 20 : 12));
+
+    const list = [], audio = [], video = [], jobs = [];
+    let idx = 0;
+    for (const trak of boxes(dv, root.s, root.e)) {
+      if (trak.type !== 'trak') continue;
+      idx++;
+      const mdhd = path(dv, trak, ['mdia', 'mdhd']);
+      const hdlr = path(dv, trak, ['mdia', 'hdlr']);
+      const stbl = path(dv, trak, ['mdia', 'minf', 'stbl']);
+      if (!mdhd || !hdlr || !stbl) continue;
+      const v1 = dv.getUint8(mdhd.s) === 1;
+      const timescale = dv.getUint32(mdhd.s + (v1 ? 20 : 12));
+      const lp = dv.getUint16(mdhd.s + (v1 ? 32 : 20));
+      const lang = lp < 0x400 ? (lp === 0 ? 'eng' : '') : String.fromCharCode(((lp >> 10) & 31) + 0x60, ((lp >> 5) & 31) + 0x60, (lp & 31) + 0x60);
+      const handler = fourcc(dv, hdlr.s + 8);
+      let hname = '';
+      try { hname = str(new Uint8Array(buf, hdlr.s + 24, Math.max(0, hdlr.e - hdlr.s - 24))).replace(/^[\x00-\x1f]+/, ''); } catch (e) {}
+      const stsd = child(dv, stbl, 'stsd');
+      const codec = stsd && stsd.e - stsd.s > 16 ? fourcc(dv, stsd.s + 12) : '';
+      const tkhd = child(dv, trak, 'tkhd');
+      const flags = tkhd ? dv.getUint32(tkhd.s) & 0xFFFFFF : 1;
+
+      if (handler === 'soun') { audio.push({ codec, lang }); continue; }
+      if (handler === 'vide') { video.push({ codec }); continue; }
+      if (!['sbtl', 'text', 'subt', 'clcp'].includes(handler)) continue;
+
+      const fmt = { tx3g: 'mov_text', text: 'QT text', wvtt: 'VTT', c608: 'CEA-608', c708: 'CEA-708', stpp: 'TTML' }[codec] || codec;
+      const supported = codec === 'tx3g' || codec === 'text' || codec === 'wvtt';
+      const genericName = /^(SubtitleHandler|TextHandler|Core Media|Apple|VideoHandler|SoundHandler|)$/i.test(hname.trim());
+      const tr = { id: 'mp4-' + idx, fmt, lang, name: genericName ? '' : hname.trim(), isDefault: !!(flags & 1), forced: false, supported, cues: [], done: false };
+      list.push(tr);
+      if (!supported) continue;
+
+      // edit list offset
+      let offset = 0;
+      const elst = path(dv, trak, ['edts', 'elst']);
+      if (elst) {
+        const ev = dv.getUint8(elst.s), n = dv.getUint32(elst.s + 4);
+        let o = elst.s + 8;
+        for (let i = 0; i < n; i++) {
+          const segDur = ev === 1 ? dv.getUint32(o) * 4294967296 + dv.getUint32(o + 4) : dv.getUint32(o);
+          const mt = ev === 1 ? dv.getInt32(o + 8) * 4294967296 + dv.getUint32(o + 12) : dv.getInt32(o + 4);
+          o += ev === 1 ? 20 : 12;
+          if (mt === -1) { offset += segDur / movieScale; continue; }
+          offset -= mt / timescale; break;
+        }
+      }
+
+      // sample tables
+      const stts = child(dv, stbl, 'stts'), stsc = child(dv, stbl, 'stsc'), stsz = child(dv, stbl, 'stsz'), stz2 = child(dv, stbl, 'stz2');
+      const stco = child(dv, stbl, 'stco'), co64 = child(dv, stbl, 'co64');
+      if (!stts || !stsc || !(stsz || stz2) || !(stco || co64)) continue;
+      const sizes = [];
+      if (stsz) {
+        const fixed = dv.getUint32(stsz.s + 4), n = dv.getUint32(stsz.s + 8);
+        for (let i = 0; i < n; i++) sizes.push(fixed || dv.getUint32(stsz.s + 12 + i * 4));
+      } else {
+        const fs = dv.getUint8(stz2.s + 7), n = dv.getUint32(stz2.s + 8);
+        for (let i = 0; i < n; i++) {
+          if (fs === 16) sizes.push(dv.getUint16(stz2.s + 12 + i * 2));
+          else if (fs === 8) sizes.push(dv.getUint8(stz2.s + 12 + i));
+          else { const b = dv.getUint8(stz2.s + 12 + (i >> 1)); sizes.push(i & 1 ? b & 15 : b >> 4); }
+        }
+      }
+      const chunks = [];
+      if (stco) { const n = dv.getUint32(stco.s + 4); for (let i = 0; i < n; i++) chunks.push(dv.getUint32(stco.s + 8 + i * 4)); }
+      else { const n = dv.getUint32(co64.s + 4); for (let i = 0; i < n; i++) chunks.push(dv.getUint32(co64.s + 8 + i * 8) * 4294967296 + dv.getUint32(co64.s + 12 + i * 8)); }
+      const sc = []; { const n = dv.getUint32(stsc.s + 4); for (let i = 0; i < n; i++) sc.push([dv.getUint32(stsc.s + 8 + i * 12), dv.getUint32(stsc.s + 12 + i * 12)]); }
+      const times = []; {
+        const n = dv.getUint32(stts.s + 4); let t = 0;
+        for (let i = 0; i < n; i++) { const cnt = dv.getUint32(stts.s + 8 + i * 8), d = dv.getUint32(stts.s + 12 + i * 8); for (let k = 0; k < cnt; k++) { times.push([t, d]); t += d; } }
+      }
+      const samples = [];
+      let si = 0;
+      for (let ci = 0; ci < chunks.length && si < sizes.length; ci++) {
+        let per = 0;
+        for (let k = sc.length - 1; k >= 0; k--) if (sc[k][0] <= ci + 1) { per = sc[k][1]; break; }
+        let off = chunks[ci];
+        for (let k = 0; k < per && si < sizes.length; k++, si++) {
+          const tm = times[si] || [0, 0];
+          samples.push({ off, size: sizes[si], t: tm[0], d: tm[1] });
+          off += sizes[si];
+        }
+      }
+      jobs.push({ tr, samples, timescale, offset, codec });
+    }
+
+    h.onInfo({ container: 'mp4', subs: list, audio, video });
+
+    let total = jobs.reduce((a, j) => a + j.samples.length, 0), doneN = 0;
+    for (const j of jobs) {
+      for (let i = 0; i < j.samples.length; i += 64) {
+        if (h.cancelled()) return;
+        const batch = j.samples.slice(i, i + 64).filter(s => s.size > 2);
+        const bufs = await Promise.all(batch.map(s => file.slice(s.off, s.off + s.size).arrayBuffer()));
+        batch.forEach((s, k) => {
+          const b = new DataView(bufs[k]);
+          const start = s.t / j.timescale + j.offset, end = (s.t + s.d) / j.timescale + j.offset;
+          if (j.codec === 'wvtt') {
+            for (const bx of boxes(b, 0, b.byteLength)) {
+              if (bx.type !== 'vttc') continue;
+              let txt = '', settings = '';
+              for (const c of boxes(b, bx.s, bx.e)) {
+                if (c.type === 'payl') txt = decodeText(new Uint8Array(bufs[k], c.s, c.e - c.s));
+                if (c.type === 'sttg') settings = decodeText(new Uint8Array(bufs[k], c.s, c.e - c.s));
+              }
+              const cue = plainToCue(txt);
+              if (/line:(0|[0-9](\.\d+)?%|1[0-9]%)/.test(settings)) cue.top = true;
+              if (cue.html) j.tr.cues.push({ start, end, html: cue.html, top: cue.top });
+            }
+          } else {
+            const len = b.getUint16(0);
+            if (!len || len + 2 > b.byteLength) return;
+            const cue = plainToCue(decodeText(new Uint8Array(bufs[k], 2, len)));
+            if (cue.html) j.tr.cues.push({ start, end, html: cue.html, top: cue.top });
+          }
+        });
+        j.tr.dirty = true;
+        doneN += batch.length;
+        h.onProgress(total ? doneN / total : 1);
+      }
+    }
+  }
+
+  // ── public entry ─────────────────────────────────────────
+  // handlers: onInfo({container, subs:[track], audio:[], video:[]}), onProgress(0..1), cancelled()
+  async function scanFile(file, handlers) {
+    const h = Object.assign({ onInfo() {}, onProgress() {}, cancelled: () => false }, handlers);
+    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const tag = String.fromCharCode(head[4], head[5], head[6], head[7]);
+    let info = null;
+    const wrap = Object.assign({}, h, { onInfo(i) { info = i; h.onInfo(i); } });
+    try {
+      if (head[0] === 0x1A && head[1] === 0x45 && head[2] === 0xDF && head[3] === 0xA3) await scanMKV(file, wrap);
+      else if (['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip', 'pnot'].includes(tag)) await scanMP4(file, wrap);
+      else { h.onInfo({ container: 'other', subs: [], audio: [], video: [] }); return null; }
+    } catch (e) {
+      if (!info) h.onInfo({ container: 'unknown', subs: [], audio: [], video: [], error: String(e && e.message || e) });
+      if (typeof console !== 'undefined') console.warn('[subs] scan stopped:', e);
+    }
+    if (info) info.subs.forEach(t => { finalize(t.cues); t.done = true; t.dirty = true; });
+    h.onProgress(1);
+    return info;
+  }
+
+  const api = { scanFile, parseSubtitleFile, langName, finalize, _parseSRTorVTT: parseSRTorVTT, _parseASS: parseASS, _assToCue: assToCue, _plainToCue: plainToCue };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.Subs = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+'use strict';
+
+/* ════════════════════════════════════════════════════════════
+   CONFIG — your Firebase project, baked in so nobody ever has to
+   paste it again. (A Firebase web config is meant to be public;
+   access is controlled by the database rules, not by hiding it.)
+   ════════════════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDCEvUIyEQqVtRT78DSgvHcLI-lgT8ew-4",
+  authDomain: "privateparty-ng.firebaseapp.com",
+  databaseURL: "https://privateparty-ng-default-rtdb.firebaseio.com",
+  projectId: "privateparty-ng",
+  storageBucket: "privateparty-ng.firebasestorage.app",
+  messagingSenderId: "164845090477",
+  appId: "1:164845090477:web:ca486d32c67650ef1eb824"
+};
+
+// Public STUN servers let two browsers find a direct path to each other for streaming.
+const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: 'stun:stun.cloudflare.com:3478' }
+];
+const STREAM_MAX_BITRATE = 8000000;   // 8 Mbps ceiling; WebRTC adapts down to the host's upload speed
+
+/* ── sync tuning ── */
+const HARD_SEEK = 1.5;      // follower is this far off → jump
+const NUDGE_START = 0.25;   // start speeding up / slowing down
+const NUDGE_STOP = 0.06;    // stop once this close
+const NUDGE = 0.05;         // ±5 % speed, pitch preserved
+const REANCHOR = 0.12;      // leader re-publishes its real position if it drifts this far from the room clock
+const REACTIONS = ['❤️', '😂', '😮', '😭', '🔥', '👏'];
+
+/* ── tiny helpers ── */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('together_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('together_' + k, JSON.stringify(v)); } catch (e) {} }
+};
+function rid(n) { const a = 'abcdefghijkmnpqrstuvwxyz23456789'; let s = ''; const r = crypto.getRandomValues(new Uint8Array(n)); for (const x of r) s += a[x % a.length]; return s; }
+function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; const r = crypto.getRandomValues(new Uint8Array(6)); for (const x of r) s += a[x % a.length]; return s; }
+function fmt(t, withH) {
+  if (!isFinite(t) || t < 0) t = 0;
+  t = Math.floor(t);
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h || withH) ? h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') : m + ':' + String(s).padStart(2, '0');
+}
+const fmtV = t => fmt(t, dur() >= 3600);
+function setIcon(btn, name) { const u = btn && btn.querySelector('use'); if (u) u.setAttribute('href', '#i-' + name); }
+
+/* ── state ── */
+const CID = rid(10);
+const video = $('video'), stage = $('stage'), chatEl = $('chat');
+const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+if (isTouch) document.body.classList.add('touch');
+
+let myName = store.get('name', '');
+let roomCode = '';
+let net = null;
+let remote = null;            // room playback state {playing,pos,at,by,name,act,file,dur,seq}
+let anchor = null;            // leader's latest real position {seq,pos,at,by} — only valid for the same seq
+let members = {};
+let gotState = false, gotMembers = false;
+let chatReady = false, fxReady = false;
+let mode = 'none';            // 'none' | 'file' (my own copy) | 'stream' (watching someone's stream)
+let file = null, objectUrl = null, loaded = false;
+let scrubbing = false, lastHardSeek = 0, lastAnchor = 0, nudging = false, needTap = false, commitTimer = null;
+let internalPlayAt = 0, internalPauseAt = 0, internalSeekAt = 0;
+let nativeFs = false, wakeLock = null, lastGuard = 0, connectedOnce = false, connTimer = null;
+let unread = 0, lastMsgCid = null, lastMsgTs = 0;
+const seenChat = new Set();
+
+/* ════════════════════════════════════════════════════════════
+   NETWORK — thin wrapper around Firebase Realtime Database
+   rooms/{code}/state    shared playback state (one object)
+   rooms/{code}/members  who's here (auto-removed on disconnect)
+   rooms/{code}/chat     messages          rooms/{code}/fx   reactions
+   rooms/{code}/stream   who is streaming  rooms/{code}/sig  WebRTC mailboxes
+   ════════════════════════════════════════════════════════════ */
+function firebaseNet() {
+  if (typeof firebase === 'undefined' || !firebase.database) throw new Error('lib');
+  const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.database(app);
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  let offset = 0, room = null, meRef = null, stateRef = null;
+  const meData = {};
+  db.ref('.info/serverTimeOffset').on('value', s => { offset = s.val() || 0; });
+  return {
+    now: () => Date.now() + offset,
+    join(code, h) {
+      room = db.ref('rooms/' + code);
+      stateRef = room.child('state');
+      meRef = room.child('members/' + CID);
+      const inbox = room.child('sig/' + CID);
+      const fail = e => h.error(e);
+      db.ref('.info/connected').on('value', s => {
+        const c = s.val() === true;
+        h.conn(c);
+        if (c) {
+          meRef.onDisconnect().remove();
+          inbox.onDisconnect().remove();
+          meRef.set(Object.assign({}, meData, { at: TS })).catch(fail);
+        }
+      });
+      room.child('members').on('value', s => h.members(s.val() || {}), fail);
+      stateRef.on('value', s => h.state(s.val()), fail);
+      room.child('stream').on('value', s => h.stream(s.val()), () => {});
+      room.child('anchor').on('value', s => h.anchor(s.val()), () => {});
+      inbox.on('child_added', s => { const v = s.val(); s.ref.remove().catch(() => {}); h.signal(v); }, () => {});
+      const chatQ = room.child('chat').limitToLast(80);
+      chatQ.on('child_added', s => h.chat(s.val(), s.key), fail);
+      chatQ.once('value', () => h.chatReady(), fail);
+      const fxQ = room.child('fx').limitToLast(1);
+      fxQ.on('child_added', s => h.fx(s.val()), () => {});
+      fxQ.once('value', () => h.fxReady(), () => h.fxReady());
+      room.child('touched').set(TS).catch(() => {});
+    },
+    me(p) { Object.assign(meData, p); if (meRef) meRef.update(p).catch(() => {}); },
+    setState(s) { return stateRef.set(Object.assign({}, s, { at: TS })); },
+    chat(m) { return room.child('chat').push(Object.assign({}, m, { ts: TS })); },
+    fx(m) { return room.child('fx').push(Object.assign({}, m, { ts: TS })); },
+    setAnchor(a) { return room.child('anchor').set(Object.assign({}, a, { at: TS })); },
+    setStream(v) {
+      const r = room.child('stream');
+      if (v) { r.onDisconnect().remove(); return r.set(v); }
+      r.onDisconnect().cancel().catch(() => {}); return r.remove();
+    },
+    signal(to, msg) { return room.child('sig/' + to).push(Object.assign({ from: CID }, msg)); },
+    guard(s) { // server-side "pause the room if I vanish" — only used while alone
+      const od = stateRef.onDisconnect();
+      od.cancel().catch(() => {});
+      if (s) od.set(Object.assign({}, s, { at: TS })).catch(() => {});
+    },
+    leave() { if (meRef) meRef.remove().catch(() => {}); }
+  };
 }
 
-video.addEventListener('mousemove', showControls);
-video.addEventListener('touchstart', showControls);
+/* ════════════════════════════════════════════════════════════
+   SYNC ENGINE
+   One shared record describes the room: "playing from pos since
+   server-time at". The LEADER (whoever acted last and is still
+   here with a local file) just plays — it never corrects itself.
+   If its real position drifts from the record (a stall, a slow
+   disk) it quietly re-publishes where it actually is.
+   Everyone else follows the leader:
+     off by > 1.5 s  → jump
+     off by > 0.25 s → play 5 % faster/slower until within 0.06 s
+   Watching alone = you're the leader = nothing ever interferes.
+   ════════════════════════════════════════════════════════════ */
+function dur() { return mode === 'stream' ? (host.d || 0) : (isFinite(video.duration) ? video.duration : 0); }
+function curT() { return mode === 'stream' ? hostTime() : video.currentTime; }
+function expected(s) {
+  if (!s) return 0;
+  let p = s.pos || 0;
+  if (s.playing && net) p += Math.max(0, net.now() - (s.at || 0)) / 1000;
+  const d = dur();
+  return d ? clamp(p, 0, d) : Math.max(0, p);
+}
+// where the room is now: the leader's latest real position if it belongs to the current action, else the action itself
+function ref() {
+  if (remote && remote.playing && anchor && anchor.seq === remote.seq && typeof anchor.pos === 'number') return Object.assign({}, remote, { pos: anchor.pos, at: anchor.at });
+  return remote;
+}
+function setTime(t) { internalSeekAt = performance.now(); try { video.currentTime = t; } catch (e) {} }
+function setRate(r) { if (Math.abs(video.playbackRate - r) > 0.001) video.playbackRate = r; }
+function play() {
+  internalPlayAt = performance.now();
+  const p = video.play();
+  if (p && p.then) p.then(() => setTap(false)).catch(e => { if (e && e.name === 'NotAllowedError') setTap(true); });
+}
+function pause() { internalPauseAt = performance.now(); video.pause(); }
 
+function fileHolders() {
+  const ids = others().filter(o => o.mode === 'file' && o.dur).map(o => o.id);
+  if (mode === 'file' && loaded) ids.push(CID);
+  return ids;
+}
+function leaderId() {
+  const ids = fileHolders();
+  if (remote && ids.includes(remote.by)) return remote.by;
+  return ids.sort()[0] || null;
+}
+const amLeader = () => leaderId() === CID;
+
+function commit(act, playing, pos, debounce) {
+  if (!net) return;
+  const s = { playing, pos, act, by: CID, name: myName, file: file ? file.name : (streamInfo ? streamInfo.file : ''), dur: Math.round(dur()), seq: ((remote && remote.seq) || 0) + 1 };
+  remote = Object.assign({}, s, { at: net.now() });           // optimistic: act locally at once
+  clearTimeout(commitTimer);
+  const send = () => {
+    if (debounce && mode === 'file' && loaded) s.pos = video.currentTime;
+    net.setState(s).catch(onNetError);
+  };
+  if (debounce) commitTimer = setTimeout(send, 300); else send();
+  lastAnchor = performance.now();
+  updateGuard();
+}
+
+function apply() {
+  if (mode !== 'file' || !remote || !loaded || scrubbing) return;
+  const t = expected(ref());
+  if (remote.playing) {
+    if (Math.abs(video.currentTime - t) > 0.6 && !(amLeader() && remote.by === CID)) { lastHardSeek = performance.now(); setTime(t); }
+    const atEnd = dur() && t >= dur() - 0.3;
+    if (video.paused && !atEnd) play();
+  } else {
+    if (!video.paused) pause();
+    if (Math.abs(video.currentTime - t) > 0.08) setTime(t);
+    setTap(false);
+  }
+  nudging = false; setRate(1);
+}
+
+function tick() {
+  if (!net || mode !== 'file') return;
+  if (!remote || !loaded || scrubbing || !remote.playing) { if (nudging) { nudging = false; setRate(1); } return; }
+  const now = performance.now();
+  if (video.paused) {
+    const atEnd = dur() && expected(ref()) >= dur() - 0.3;
+    if (!needTap && !atEnd && !video.ended) apply();
+    return;
+  }
+  if (now - lastGuard > 5000) updateGuard();
+  if (video.seeking || video.readyState < 3) return;
+  const target = expected(ref());
+  const d = video.currentTime - target;
+  const ad = Math.abs(d);
+
+  if (amLeader()) {
+    // the leader never steers itself; it tells the room where it really is
+    if (nudging) { nudging = false; setRate(1); }
+    if (ad > REANCHOR && now - lastAnchor > 1500) {
+      lastAnchor = now;
+      anchor = { seq: remote.seq, pos: video.currentTime, at: net.now(), by: CID };
+      if (net.setAnchor) net.setAnchor({ seq: remote.seq, pos: video.currentTime, by: CID }).catch(() => {});
+    }
+    return;
+  }
+  if (ad > HARD_SEEK && now - lastHardSeek > 4000) { lastHardSeek = now; nudging = false; setRate(1); setTime(target + 0.05); return; }
+  if (nudging ? ad > NUDGE_STOP : ad > NUDGE_START) { nudging = true; setRate(d > 0 ? 1 - NUDGE : 1 + NUDGE); }
+  else if (nudging) { nudging = false; setRate(1); }
+}
+setInterval(tick, 500);
+
+/* user actions (these broadcast) */
+function hostPausedNow() { return mode === 'stream' ? (remote ? !remote.playing : host.p) : video.paused; }
+function userPlay() {
+  if (!loaded) return pickVideo();
+  if (mode === 'stream') { commit('play', true, curT()); playStream(); flash('play'); poke(); renderPlayIcons(); return; }
+  if (video.ended || (dur() && video.currentTime >= dur() - 0.3)) setTime(0);
+  commit('play', true, video.currentTime);
+  play(); flash('play'); poke();
+}
+function userPause() {
+  if (!loaded) return;
+  if (mode === 'stream') { commit('pause', false, curT()); flash('pause'); poke(); renderPlayIcons(); return; }
+  pause(); commit('pause', false, video.currentTime); flash('pause'); poke();
+}
+function userToggle() { if (!loaded) return pickVideo(); (hostPausedNow() ? userPlay : userPause)(); }
+function userSeek(t, debounce) {
+  if (!loaded) return;
+  t = clamp(t, 0, dur());
+  if (mode === 'stream') { commit('seek', !hostPausedNow(), t); seekGhost = { t, at: performance.now() }; updateBars(); poke(); return; }
+  setTime(t);
+  commit('seek', !video.paused || (remote && remote.playing && needTap) || false, t, debounce);
+  updateBars(); poke();
+}
+function userSkip(d) { if (!loaded) return; userSeek(curT() + d, mode === 'file'); }
+
+/* while alone, ask the server to pause the room if this tab dies,
+   so the next visit doesn't find a "playing" state from hours ago */
+let guardOn = false;
+function updateGuard() {
+  if (!net || !net.guard) return;
+  lastGuard = performance.now();
+  const alone = others().length === 0;
+  if (alone && mode === 'file' && loaded && remote && remote.playing) {
+    guardOn = true;
+    net.guard({ playing: false, pos: video.currentTime, act: 'pause', by: CID, name: myName, file: file ? file.name : '', dur: Math.round(dur()), seq: (remote.seq || 0) + 1 });
+  } else if (guardOn) { guardOn = false; net.guard(null); }
+}
+
+function onState(s) {
+  const first = !gotState; gotState = true;
+  if (s && typeof s.pos !== 'number') s = null;   // rooms made by the old version stored a different shape
+  const prev = remote;
+  remote = s || null;
+  if (!s) return;
+  if (!first && s.by !== CID && (!prev || prev.seq !== s.seq)) announce(s);
+  if (s.by !== CID || first) apply();
+  if (first) fixStale();
+  renderPresence(); renderPlayIcons();
+}
+
+function fixStale() {
+  if (!gotState || !gotMembers || !remote || !remote.playing) return;
+  if (others().length) return;
+  if (net.now() - (remote.at || 0) < 60000) return;
+  // nobody is here but the room says "playing" → it was left running. Park it.
+  let p = expected(remote);
+  if (remote.dur) p = Math.min(p, Math.max(0, remote.dur - 1));
+  const s = Object.assign({}, remote, { playing: false, pos: p, act: 'pause', by: CID, name: myName, seq: (remote.seq || 0) + 1 });
+  remote = Object.assign({}, s, { at: net.now() });
+  net.setState(s).catch(() => {});
+}
+
+function announce(s) {
+  const who = '<b>' + esc(s.name || 'Partner') + '</b>';
+  let txt = '';
+  if (s.act === 'play') { txt = who + ' pressed play'; flash('play'); }
+  else if (s.act === 'pause') { txt = who + ' paused at ' + fmtV(s.pos); flash('pause'); }
+  else if (s.act === 'seek') txt = who + ' jumped to ' + fmtV(s.pos);
+  else if (s.act === 'load') txt = who + ' started ' + esc(s.file || 'a new video');
+  if (!txt) return;
+  activity(txt);
+  sys(txt.replace(/<\/?b>/g, ''));
+}
+
+/* ════════════════════════════════════════════════════════════
+   PRESENCE
+   ════════════════════════════════════════════════════════════ */
+function others() { return Object.entries(members).filter(([k, v]) => k !== CID && v && v.name).map(([k, v]) => Object.assign({ id: k }, v)); }
+function onMembers(m) {
+  const before = new Map(others().map(o => [o.id, o.name]));
+  const firstLoad = !gotMembers;
+  members = m || {};
+  gotMembers = true;
+  const now = others();
+  if (!firstLoad) {
+    now.forEach(o => { if (!before.has(o.id)) { activity('<b>' + esc(o.name) + '</b> joined'); sys(o.name + ' joined'); } });
+    before.forEach((name, id) => { if (!now.find(o => o.id === id)) { activity('<b>' + esc(name) + '</b> left'); sys(name + ' left'); dropPeer(id); } });
+  }
+  renderPresence();
+  updateGuard();
+  fixStale();
+  maybeOfferStream();
+}
+function renderPresence() {
+  const o = others();
+  const el = $('presence'), txt = $('presenceText');
+  el.classList.toggle('on', o.length > 0);
+  if (!o.length) txt.textContent = 'Waiting for your partner…';
+  else {
+    const names = o.map(x => x.name).join(', ');
+    let extra = '';
+    if (o.length === 1) {
+      const p = o[0];
+      if (p.buf) extra = ' · buffering…';
+      else if (p.mode === 'stream') extra = ' · watching your stream';
+      else if (!p.file) extra = ' · no video yet';
+      else if (mode === 'file' && loaded && p.dur && Math.abs(p.dur - dur()) > 2) extra = ' · different video?';
+    }
+    txt.textContent = names + (o.length === 1 ? ' is here' : ' are here') + extra;
+  }
+  renderEmpty();
+}
+function renderEmpty() {
+  const o = others();
+  const st = streamInfo && streamInfo.host !== CID ? streamInfo : null;
+  const withFile = o.find(x => x.file && x.mode === 'file');
+  const watch = $('watchBtn'), pick = $('pickBtn'), h2 = $('empty').querySelector('h2');
+  if (st) {
+    h2.textContent = esc(st.name) ? st.name + ' is streaming' : 'Live stream available';
+    $('emptyHint').innerHTML = '<b>' + esc(st.file) + '</b><br>Watch it straight from their player — no file needed.';
+    watch.hidden = false; watch.innerHTML = '<svg><use href="#i-play"/></svg> Watch ' + esc(st.name) + '\'s stream';
+    pick.className = 'btn ghost big'; pick.textContent = 'Open my own copy instead';
+  } else {
+    h2.textContent = 'Pick a video';
+    $('emptyHint').innerHTML = withFile
+      ? '<b>' + esc(withFile.name) + '</b> is watching <b>' + esc(withFile.file) + '</b><br>Open the same file — or ask them to tap <b>Stream</b> so you don\'t need it.'
+      : 'MP4, MOV, MKV or WebM — or drop it here.<br>Only one of you needs the file: the other can watch a live stream.';
+    watch.hidden = true;
+    pick.className = 'btn primary big'; pick.textContent = 'Choose video';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   VIDEO LOADING (own copy)
+   ════════════════════════════════════════════════════════════ */
+function pickVideo() { $('fileInput').click(); }
+function loadFile(f) {
+  if (!f) return;
+  if (/\.(srt|vtt|ass|ssa)$/i.test(f.name)) return loadSubFile(f);
+  stopViewing(true);
+  hideBanner();
+  $('videoErr').hidden = true;
+  internalPauseAt = performance.now();
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  file = { name: f.name, size: f.size };
+  mode = 'file'; loaded = false;
+  stage.classList.remove('loaded', 'streaming');
+  $('empty').hidden = false;
+  objectUrl = URL.createObjectURL(f);
+  video.srcObject = null;
+  video.src = objectUrl;
+  video.load();
+  capStream = null;
+  if (net) net.me({ file: f.name, dur: 0, buf: false, mode: 'file' });
+  scanSubs(f);
+  if ('mediaSession' in navigator) try { navigator.mediaSession.metadata = new MediaMetadata({ title: f.name.replace(/\.[^.]+$/, ''), artist: 'Together' }); } catch (e) {}
+}
+video.addEventListener('loadedmetadata', () => {
+  if (mode !== 'file' || !file) return;
+  loaded = true;
+  stage.classList.add('loaded');
+  $('empty').hidden = true;
+  if (net) net.me({ dur: Math.round(dur()) });
+  updateBars();
+  checkMismatch();
+  apply();
+  renderPresence();
+  poke();
+  if (hosting) { net.setStream(streamRecord()).catch(() => {}); pushTracks(); }
+  else maybeOfferStream();
+  if (!remote && !hosting) toast('Ready — press play when you both are');
+});
+video.addEventListener('loadeddata', () => {
+  if (mode === 'file' && loaded && video.videoWidth === 0 && subs.info && subs.info.video.length) showVideoError('picture');
+});
+video.addEventListener('error', () => { if (mode === 'file' && file) showVideoError('file'); });
+
+function showVideoError(kind) {
+  const vc = subs.info && subs.info.video[0] ? codecName(subs.info.video[0].codec) : '';
+  const msg = kind === 'picture'
+    ? 'Sound works but this browser can\'t decode the picture' + (vc ? ' (' + vc + ')' : '') + '. Try Safari or Edge, or an H.264 version of the file.'
+    : 'This browser can\'t play this file' + (vc ? ' (video: ' + vc + ')' : '') + '. Chrome/Edge play most MP4 & MKV (H.264). Safari can\'t open MKV at all.';
+  if (kind === 'file') { loaded = false; stage.classList.remove('loaded'); $('empty').hidden = false; }
+  const el = $('videoErr'); el.textContent = msg; el.hidden = false;
+  if (kind === 'picture') showBanner(esc(msg), [{ label: 'OK', fn: hideBanner }]);
+}
+function codecName(c) {
+  c = String(c || '');
+  if (/HEVC|hvc1|hev1/i.test(c)) return 'HEVC / H.265';
+  if (/AVC|avc1|avc3/i.test(c)) return 'H.264';
+  if (/AV1|av01/i.test(c)) return 'AV1';
+  if (/VP9|vp09/i.test(c)) return 'VP9';
+  if (/VP8/i.test(c)) return 'VP8';
+  if (/MPEG4\/ISO\/(SP|ASP)|mp4v|XVID|DIVX/i.test(c)) return 'MPEG-4 Part 2 (Xvid/DivX)';
+  if (/MPEG2|mp2v/i.test(c)) return 'MPEG-2';
+  return c.replace(/^V_/, '');
+}
+
+function checkMismatch() {
+  if (!remote || !remote.file || !remote.dur || remote.by === CID) return;
+  const d = Math.round(dur());
+  if (Math.abs(remote.dur - d) <= 2 || remote.file === file.name) return;
+  showBanner(
+    'Your file (<b>' + esc(file.name) + '</b>, ' + fmt(d) + ') doesn\'t match what the room is playing (<b>' + esc(remote.file) + '</b>, ' + fmt(remote.dur) + ').',
+    [{ label: 'Keep in sync anyway', fn: hideBanner, ghost: true },
+     { label: 'Start my video for everyone', fn: () => { hideBanner(); setTime(0); commit('load', false, 0); } }]
+  );
+}
+
+/* drag & drop anywhere on the player */
+['dragenter', 'dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); $('empty').classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); $('empty').classList.remove('drag'); }));
+stage.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+/* ════════════════════════════════════════════════════════════
+   STREAMING — one person has the file, the other watches live.
+   The host's own player is captured (captureStream) and sent
+   peer-to-peer over WebRTC; Firebase only carries the handshake.
+   Either side can play/pause/seek: the host's player obeys the
+   shared state, so the stream follows.
+   ════════════════════════════════════════════════════════════ */
+let hosting = false, capStream = null, streamInfo = null;
+const peers = new Map();           // host side: viewerId → {pc, dc, ready}
+let viewer = null;                 // viewer side: {pc, dc, host, ready, ms}
+const host = { t: 0, p: true, d: 0, rx: 0 };   // viewer: latest position report from host
+let seekGhost = null;              // viewer: where they just asked to seek (until host confirms)
+const canHost = () => typeof HTMLMediaElement !== 'undefined' && typeof HTMLMediaElement.prototype.captureStream === 'function' && typeof RTCPeerConnection !== 'undefined';
+
+function streamRecord() { return { host: CID, name: myName, file: file ? file.name : '', dur: Math.round(dur()) }; }
+function captured() {
+  if (!capStream) {
+    try { capStream = video.captureStream(); capStream.addEventListener('addtrack', pushTracks); }
+    catch (e) { capStream = null; }
+  }
+  return capStream;
+}
+function pushTracks() {
+  if (!hosting) return;
+  const cs = captured(); if (!cs) return;
+  const v = cs.getVideoTracks()[0] || null, a = cs.getAudioTracks()[0] || null;
+  if (v && 'contentHint' in v) v.contentHint = 'motion';
+  for (const p of peers.values()) for (const tr of p.pc.getTransceivers()) {
+    const k = tr.receiver && tr.receiver.track && tr.receiver.track.kind;
+    const t = k === 'video' ? v : k === 'audio' ? a : null;
+    if (t && tr.sender.track !== t) tr.sender.replaceTrack(t).catch(() => {});
+  }
+}
+function startHosting() {
+  if (!net || mode !== 'file' || !loaded) { toast('Open a video first'); return; }
+  if (!canHost()) { toast('Streaming needs Chrome, Edge or Brave on the device that has the file'); return; }
+  hosting = true; capStream = null; captured();
+  net.setStream(streamRecord()).catch(onNetError);
+  hideBanner();
+  renderStreamUI();
+  toast('Streaming on — your partner can now watch without the file');
+  sys('You started streaming ' + (file ? file.name : 'your video') + '.');
+}
+function stopHosting(silent) {
+  if (!hosting) return;
+  hosting = false;
+  for (const [id, p] of peers) { try { net.signal(id, { type: 'bye' }); } catch (e) {} try { p.pc.close(); } catch (e) {} }
+  peers.clear();
+  if (net) net.setStream(null).catch(() => {});
+  renderStreamUI();
+  if (!silent) toast('Streaming stopped');
+}
+function dropPeer(id) {
+  const p = peers.get(id);
+  if (p) { try { p.pc.close(); } catch (e) {} peers.delete(id); renderStreamUI(); }
+  if (viewer && viewer.host === id) stopViewing(false, 'The stream ended — ' + ((streamInfo && streamInfo.name) || 'the host') + ' left.');
+}
+function hostAccept(m) {
+  if (!hosting) { net.signal(m.from, { type: 'bye' }); return; }
+  const old = peers.get(m.from); if (old) try { old.pc.close(); } catch (e) {}
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const peer = { pc, dc: null, id: m.from };
+  peers.set(m.from, peer);
+  pc.onicecandidate = e => { if (e.candidate) net.signal(m.from, { type: 'ice', c: JSON.stringify(e.candidate) }); };
+  pc.ondatachannel = e => { peer.dc = e.channel; e.channel.onopen = () => sendSubsTo(peer); e.channel.onmessage = () => {}; };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') tuneSenders(pc);
+    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { if (peers.get(m.from) === peer) peers.delete(m.from); }
+    renderStreamUI();
+  };
+  peer.ready = (async () => {
+    await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
+    const cs = captured();
+    for (const tr of pc.getTransceivers()) {
+      const kind = tr.receiver.track.kind;
+      tr.direction = 'sendonly';
+      const t = cs && (kind === 'video' ? cs.getVideoTracks()[0] : cs.getAudioTracks()[0]);
+      if (t) await tr.sender.replaceTrack(t);
+    }
+    await pc.setLocalDescription(await pc.createAnswer());
+    net.signal(m.from, { type: 'answer', sdp: pc.localDescription.sdp });
+  })().catch(e => console.warn('[together] host negotiation failed', e));
+  renderStreamUI();
+}
+function tuneSenders(pc) {
+  for (const s of pc.getSenders()) {
+    if (!s.track || s.track.kind !== 'video') continue;
+    try {
+      const p = s.getParameters();
+      if (!p.encodings || !p.encodings.length) continue;
+      p.encodings[0].maxBitrate = STREAM_MAX_BITRATE;
+      p.degradationPreference = 'maintain-framerate';
+      s.setParameters(p).catch(() => {});
+    } catch (e) {}
+  }
+}
+// host → viewers: position reports 4× a second (drives their seek bar & subtitles)
+setInterval(() => {
+  if (!hosting || !peers.size) return;
+  const msg = JSON.stringify({ k: 't', t: video.currentTime, p: video.paused, d: dur() });
+  for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') try { p.dc.send(msg); } catch (e) {}
+}, 250);
+function sendSubsTo(peer) {
+  if (!peer.dc || peer.dc.readyState !== 'open') return;
+  const list = subs.tracks.filter(t => t.supported && t.cues.length && (t.done || t.external));
+  const send = o => { try { peer.dc.send(JSON.stringify(o)); } catch (e) {} };
+  send({ k: 'subs', tracks: list.map((t, i) => ({ i, lang: t.lang || '', name: t.name || '', fmt: t.external ? 'from ' + (myName || 'host') : t.fmt, forced: !!t.forced, isDefault: !!t.isDefault })) });
+  list.forEach((t, i) => { for (let j = 0; j < t.cues.length; j += 200) send({ k: 'cues', i, cues: t.cues.slice(j, j + 200).map(c => [c.start, isFinite(c.end) ? c.end : c.start + 4, c.html, c.top ? 1 : 0]) }); });
+  send({ k: 'subs-end', active: subs.active ? list.indexOf(subs.active) : -1 });
+}
+function resendSubs() { if (hosting) for (const p of peers.values()) sendSubsTo(p); }
+
+const lackSince = new Map();
+function maybeOfferStream() {
+  // I have the file, partner doesn't → suggest streaming, once per partner
+  if (hosting || mode !== 'file' || !loaded || !canHost()) return;
+  const now = Date.now();
+  const lacking = others().filter(o => !o.file && o.mode !== 'stream');
+  lacking.forEach(o => { if (!lackSince.has(o.id)) { lackSince.set(o.id, now); setTimeout(maybeOfferStream, 5200); } });
+  // give them ~5 s to open their own copy before suggesting a stream
+  const ready = lacking.filter(o => now - lackSince.get(o.id) >= 5000);
+  if (!ready.length) return;
+  lacking.length = 0; lacking.push(...ready);
+  const key = lacking.map(o => o.id).sort().join(',');
+  if (maybeOfferStream.shown === key) return;
+  maybeOfferStream.shown = key;
+  showBanner('<b>' + esc(lacking.map(o => o.name).join(', ')) + '</b> doesn\'t have this video. Stream it to them? They\'ll watch live from your player.',
+    [{ label: 'Not now', fn: hideBanner, ghost: true }, { label: 'Stream to ' + lacking[0].name, fn: startHosting }]);
+}
+
+/* viewer side */
+function onStream(v) {
+  const had = streamInfo;
+  streamInfo = v && v.host ? v : null;
+  if (viewer && (!streamInfo || streamInfo.host !== viewer.host)) stopViewing(false, (had && had.name ? had.name : 'The host') + ' stopped streaming.');
+  if (hosting && streamInfo && streamInfo.host !== CID) stopHosting(true); // someone else took over
+  if (streamInfo && streamInfo.host !== CID && mode !== 'file' && !viewer && (!had || had.host !== streamInfo.host)) {
+    activity('<b>' + esc(streamInfo.name) + '</b> is streaming — tap Watch');
+  }
+  renderEmpty(); renderStreamUI();
+}
+async function watchStream() {
+  if (!streamInfo || !net) return;
+  if (typeof RTCPeerConnection === 'undefined') { toast('This browser can\'t receive streams'); return; }
+  stopViewing(true);
+  if (mode === 'file') { video.pause(); video.removeAttribute('src'); video.load(); if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null; file = null; }
+  const st = streamInfo;
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const ms = new MediaStream();
+  viewer = { pc, host: st.host, dc: null, ms, got: false };
+  mode = 'stream'; loaded = false;
+  Object.assign(host, { t: 0, p: true, d: st.dur || 0, rx: 0 });
+  subs.gen++; Object.assign(subs, { tracks: [], active: null, offset: 0, scanning: false, info: { container: 'stream', subs: [], audio: [], video: [] } });
+  renderCues(true);
+  const tv = pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+  try {
+    const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities('video');
+    if (caps && tv.setCodecPreferences) {
+      const rank = c => /H264/i.test(c.mimeType) ? 0 : /VP9/i.test(c.mimeType) ? 1 : /VP8/i.test(c.mimeType) ? 2 : /AV1/i.test(c.mimeType) ? 3 : 4;
+      tv.setCodecPreferences(caps.codecs.slice().sort((a, b) => rank(a) - rank(b)));
+    }
+  } catch (e) {}
+  const dc = pc.createDataChannel('sync');
+  viewer.dc = dc;
+  dc.onmessage = e => { try { onHostMsg(JSON.parse(e.data)); } catch (err) {} };
+  pc.ontrack = e => {
+    if (!ms.getTracks().includes(e.track)) ms.addTrack(e.track);
+    if (video.srcObject !== ms) { video.removeAttribute('src'); video.srcObject = ms; }
+    if (!viewer.got) {
+      viewer.got = true; loaded = true;
+      stage.classList.add('loaded', 'streaming'); $('empty').hidden = true;
+      playStream(); poke();
+    }
+  };
+  pc.onicecandidate = e => { if (e.candidate) net.signal(st.host, { type: 'ice', c: JSON.stringify(e.candidate) }); };
+  pc.onconnectionstatechange = () => {
+    if (!viewer || viewer.pc !== pc) return;
+    if (pc.connectionState === 'failed') stopViewing(false, 'Couldn\'t connect to ' + st.name + ' directly — one of your networks blocks peer-to-peer video (common on mobile data). Try both on Wi-Fi, or each open your own copy.');
+    renderStreamUI();
+  };
+  net.me({ mode: 'stream', file: '', dur: 0, buf: false });
+  stage.classList.add('connecting');
+  renderStreamUI();
+  try {
+    await pc.setLocalDescription(await pc.createOffer());
+    net.signal(st.host, { type: 'offer', sdp: pc.localDescription.sdp });
+  } catch (e) { stopViewing(false, 'Couldn\'t start the stream on this browser.'); }
+  setTimeout(() => { if (viewer && viewer.pc === pc && !viewer.got) stopViewing(false, 'The stream didn\'t arrive — ' + st.name + '\'s network may block peer-to-peer video. Try again, or both use Wi-Fi.'); }, 20000);
+}
+function stopViewing(silent, msg) {
+  if (!viewer) { if (mode === 'stream') mode = 'none'; return; }
+  const v = viewer; viewer = null;
+  try { net && net.signal(v.host, { type: 'bye' }); } catch (e) {}
+  try { v.pc.close(); } catch (e) {}
+  video.srcObject = null;
+  if (mode === 'stream') { mode = 'none'; loaded = false; stage.classList.remove('loaded', 'streaming', 'connecting'); $('empty').hidden = false; if (net) net.me({ mode: 'none' }); }
+  subs.tracks = []; subs.active = null; renderCues(true); $('ccDot').hidden = true;
+  renderStreamUI(); renderEmpty();
+  if (!silent && msg) { const e = $('videoErr'); e.textContent = msg; e.hidden = false; }
+}
+function playStream() {
+  internalPlayAt = performance.now();
+  const p = video.play();
+  if (p && p.catch) p.then(() => setTap(false)).catch(e => { if (e && e.name === 'NotAllowedError') setTap(true); });
+}
+function hostTime() {
+  if (seekGhost && performance.now() - seekGhost.at < 2500) return seekGhost.t;
+  if (!host.rx) return remote ? expected(ref()) : 0;
+  const lag = 0.12; // stream arrives a little after the host's report
+  return host.p ? host.t : Math.max(0, host.t + (performance.now() - host.rx) / 1000 - lag);
+}
+function onHostMsg(m) {
+  if (m.k === 't') {
+    const wasP = host.p;
+    host.t = m.t; host.p = m.p; host.d = m.d || host.d; host.rx = performance.now();
+    if (seekGhost && Math.abs(m.t - seekGhost.t) < 1.5) seekGhost = null;
+    stage.classList.remove('connecting');
+    if (wasP !== m.p) renderPlayIcons();
+    if (!m.p && video.paused && !needTap) playStream();   // keep the live stream flowing
+    updateBars();
+  } else if (m.k === 'subs') {
+    viewer && (viewer.subs = m.tracks.map(t => Object.assign({ id: 'rem' + t.i, supported: true, done: true, cues: [] }, t)));
+  } else if (m.k === 'cues') {
+    const t = viewer && viewer.subs && viewer.subs[m.i];
+    if (t) m.cues.forEach(c => t.cues.push({ start: c[0], end: c[1], html: c[2], top: !!c[3] }));
+  } else if (m.k === 'subs-end') {
+    if (!viewer || !viewer.subs) return;
+    const keepLang = subs.active && subs.active.lang;
+    subs.tracks = viewer.subs.filter(t => t.cues.length);
+    subs.info = { container: 'stream', subs: subs.tracks, audio: [], video: [] };
+    subs.active = null;
+    const pref = store.get('subLang', null);
+    let pick = null;
+    if (pref !== 'off') pick = subs.tracks.find(t => t.lang && (t.lang.toLowerCase() === (keepLang || pref))) || null;
+    if (!pick && pref !== 'off' && m.active >= 0) pick = subs.tracks[m.active] || null;
+    if (pick) selectTrack(pick, true);
+    renderMenu();
+    if (subs.tracks.length && !pick) toast(subs.tracks.length + ' subtitle track' + (subs.tracks.length > 1 ? 's' : '') + ' available — tap CC');
+  }
+}
+async function onSignal(m) {
+  if (!m || !m.type || !m.from) return;
+  try {
+    if (m.type === 'offer') hostAccept(m);
+    else if (m.type === 'answer' && viewer && viewer.host === m.from) { viewer.ready = viewer.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); await viewer.ready; }
+    else if (m.type === 'ice') {
+      const c = JSON.parse(m.c);
+      const p = peers.get(m.from);
+      if (p) { await p.ready; await p.pc.addIceCandidate(c); }
+      else if (viewer && viewer.host === m.from) {
+        // ICE can beat the answer here; wait for it
+        for (let i = 0; i < 50 && !viewer.ready; i++) await new Promise(r => setTimeout(r, 100));
+        if (viewer && viewer.ready) { await viewer.ready; await viewer.pc.addIceCandidate(c); }
+      }
+    } else if (m.type === 'bye') {
+      if (peers.has(m.from)) dropPeer(m.from);
+      else if (viewer && viewer.host === m.from) stopViewing(false, ((streamInfo && streamInfo.name) || 'The host') + ' stopped streaming.');
+    }
+  } catch (e) { console.warn('[together] signal', m.type, e); }
+}
+function renderStreamUI() {
+  const btn = $('castBtn');
+  btn.classList.toggle('on', hosting);
+  btn.hidden = mode === 'stream';
+  const n = [...peers.values()].filter(p => p.pc.connectionState === 'connected').length;
+  $('castCount').hidden = !hosting || !n; $('castCount').textContent = n;
+  btn.title = hosting ? 'Streaming to ' + n + ' — click to stop' : 'Stream this video to your partner';
+  const pill = $('streamPill');
+  if (hosting) { pill.hidden = false; pill.textContent = n ? 'LIVE · ' + n + ' watching' : 'LIVE · waiting'; }
+  else if (mode === 'stream' && viewer) { pill.hidden = false; pill.textContent = 'LIVE · from ' + ((streamInfo && streamInfo.name) || 'host'); }
+  else pill.hidden = true;
+}
+$('castBtn').addEventListener('click', () => hosting ? stopHosting() : startHosting());
+$('watchBtn').addEventListener('click', watchStream);
+
+/* ════════════════════════════════════════════════════════════
+   MEDIA EVENTS
+   ════════════════════════════════════════════════════════════ */
+function renderPlayIcons() {
+  const p = mode === 'stream' ? hostPausedNow() : video.paused;
+  setIcon($('playBtn'), p ? 'play' : 'pause'); setIcon($('centerPlay'), p ? 'play' : 'pause');
+}
+video.addEventListener('play', () => {
+  renderPlayIcons();
+  // started from outside our UI (native iOS controls, media keys we didn't catch)
+  if (mode === 'file' && loaded && performance.now() - internalPlayAt > 1000 && document.visibilityState === 'visible' && !(remote && remote.playing)) commit('play', true, video.currentTime);
+  requestWake(); poke(); subLoop();
+  if (hosting) pushTracks();
+});
 video.addEventListener('pause', () => {
+  renderPlayIcons();
+  if (mode === 'file' && loaded && !video.ended && !scrubbing && performance.now() - internalPauseAt > 1000 && document.visibilityState === 'visible' && remote && remote.playing) commit('pause', false, video.currentTime);
+  if (mode === 'file') releaseWake();
+  poke();
+});
+video.addEventListener('seeking', () => {
+  if (mode === 'file' && nativeFs && loaded && performance.now() - internalSeekAt > 800) commit('seek', !video.paused, video.currentTime, true);
+});
+let bufSent = false;
+function setBuf(b) { stage.classList.toggle('buffering', b); if (net && b !== bufSent) { bufSent = b; net.me({ buf: b }); } }
+video.addEventListener('waiting', () => { if (mode === 'file') setBuf(true); });
+['playing', 'canplay', 'seeked', 'pause'].forEach(ev => video.addEventListener(ev, () => setBuf(false)));
+video.addEventListener('timeupdate', () => { if (!scrubbing) updateBars(); renderCues(); });
+video.addEventListener('seeked', () => renderCues());
+video.addEventListener('progress', updateBars);
+video.addEventListener('durationchange', updateBars);
+video.addEventListener('webkitbeginfullscreen', () => { nativeFs = true; syncNativeTrack(); });
+video.addEventListener('webkitendfullscreen', () => { nativeFs = false; syncNativeTrack(); apply(); });
 
-    const toolbar = document.querySelector('.toolbar');
-
-    toolbar.style.opacity = '1';
-    toolbar.style.pointerEvents = 'auto';
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { apply(); if (mode === 'stream' && viewer && video.paused) playStream(); if (!video.paused) requestWake(); }
 });
 
-video.addEventListener('play', showControls);
+async function requestWake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
+function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.classList.add('show');
-            clearTimeout(t._t);
-            t._t = setTimeout(() => t.classList.remove('show'), 3500);
-        }
+if ('mediaSession' in navigator) {
+  const ms = navigator.mediaSession;
+  const set = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) {} };
+  set('play', userPlay); set('pause', userPause);
+  set('seekbackward', () => userSkip(-10)); set('seekforward', () => userSkip(10));
+}
 
-        // ══════════════════════════════════════════════
-        //  10. CLEANUP
-        // ══════════════════════════════════════════════
-        window.addEventListener('beforeunload', () => {
-            stopHeartbeat();
-            if (presRef) presRef.update({
-                online: false
-            });
-            if (stateRef) stateRef.off();
-            if (chatRef) chatRef.off();
-            if (roomRef) roomRef.off();
+/* ════════════════════════════════════════════════════════════
+   PLAYER UI
+   ════════════════════════════════════════════════════════════ */
+const seekEl = $('seek');
+function updateBars() {
+  const d = dur();
+  const t = scrubbing ? scrubT : curT();
+  const pct = d ? clamp(t / d, 0, 1) * 100 : 0;
+  $('fillBar').style.width = pct + '%';
+  $('knob').style.left = pct + '%';
+  let b = 0;
+  if (mode === 'file') { try { for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 1) b = Math.max(b, video.buffered.end(i)); } catch (e) {} }
+  $('bufBar').style.width = (d ? b / d * 100 : 0) + '%';
+  $('curTime').textContent = fmtV(t);
+  $('durTime').textContent = fmtV(d);
+}
+setInterval(() => { if (mode === 'stream' && loaded && !scrubbing) { updateBars(); if (video.paused) renderCues(); } }, 250);
+let scrubT = 0, lastScrubSeek = 0;
+function posFrom(e) { const r = seekEl.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * dur(); }
+function moveTip(e) {
+  const r = seekEl.getBoundingClientRect();
+  const x = clamp(e.clientX - r.left, 0, r.width);
+  const tip = $('seekTip');
+  tip.textContent = fmtV(posFrom(e));
+  tip.style.left = clamp(x, 24, r.width - 24) + 'px';
+}
+seekEl.addEventListener('pointerdown', e => {
+  if (!loaded) return;
+  e.preventDefault();
+  scrubbing = true;
+  seekEl.setPointerCapture(e.pointerId);
+  seekEl.classList.add('drag');
+  scrubT = posFrom(e); moveTip(e); updateBars();
+});
+seekEl.addEventListener('pointermove', e => {
+  moveTip(e);
+  if (!scrubbing) return;
+  scrubT = posFrom(e); updateBars(); poke();
+  const now = performance.now();
+  if (mode === 'file' && now - lastScrubSeek > 150) { lastScrubSeek = now; setTime(scrubT); }
+});
+function endScrub(e) {
+  if (!scrubbing) return;
+  scrubbing = false;
+  seekEl.classList.remove('drag');
+  userSeek(posFrom(e));
+}
+seekEl.addEventListener('pointerup', endScrub);
+seekEl.addEventListener('pointercancel', endScrub);
+
+/* auto-hide controls */
+let uiTimer = null, overControls = false;
+function anyPopOpen() { return !$('ccMenu').hidden || !$('reactPop').hidden; }
+function showingPaused() { return mode === 'stream' ? hostPausedNow() : video.paused; }
+function poke() {
+  stage.classList.add('ui'); stage.classList.remove('idle');
+  clearTimeout(uiTimer);
+  if (!showingPaused() && !overControls && !anyPopOpen()) uiTimer = setTimeout(hideUI, 2800);
+}
+function hideUI() {
+  if (showingPaused() || overControls || anyPopOpen() || scrubbing || !loaded) return;
+  stage.classList.remove('ui'); stage.classList.add('idle');
+}
+stage.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') poke(); });
+$('controls').addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { overControls = true; poke(); } });
+$('controls').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { overControls = false; poke(); } });
+stage.addEventListener('mouseleave', () => { overControls = false; if (!showingPaused()) { clearTimeout(uiTimer); uiTimer = setTimeout(hideUI, 800); } });
+
+/* clicks & taps on the picture */
+const hit = $('hit');
+let clickTimer = null, tapTimer = null, lastTap = 0, lastPtr = 'mouse';
+hit.addEventListener('pointerdown', e => { lastPtr = e.pointerType; });
+hit.addEventListener('click', () => {
+  if (lastPtr === 'touch') return;
+  if (anyPopOpen()) { closePops(); return; }
+  clearTimeout(clickTimer);
+  clickTimer = setTimeout(userToggle, 200);
+});
+hit.addEventListener('dblclick', () => { if (lastPtr === 'touch') return; clearTimeout(clickTimer); toggleFs(); });
+hit.addEventListener('pointerup', e => {
+  if (e.pointerType !== 'touch') return;
+  if (anyPopOpen()) { closePops(); return; }
+  const now = performance.now();
+  const x = e.offsetX / hit.clientWidth;
+  if (now - lastTap < 320 && (x < 0.35 || x > 0.65) && loaded) {
+    clearTimeout(tapTimer);
+    userSkip(x < 0.5 ? -10 : 10);
+    ripple(x < 0.5 ? 'rippleL' : 'rippleR');
+    lastTap = now; return;
+  }
+  lastTap = now;
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => { if (stage.classList.contains('ui') && !showingPaused()) { clearTimeout(uiTimer); hideUI(); } else poke(); }, 260);
+});
+
+$('playBtn').addEventListener('click', userToggle);
+// don't let a clicked button keep focus, or Space would "click" it again
+$('controls').addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail) b.blur(); });
+$('centerPlay').addEventListener('click', userToggle);
+$('backBtn').addEventListener('click', () => userSkip(-10));
+$('fwdBtn').addEventListener('click', () => userSkip(10));
+$('pickBtn').addEventListener('click', pickVideo);
+$('fileBtn').addEventListener('click', pickVideo);
+$('fileInput').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+$('subInput').addEventListener('change', e => { loadSubFile(e.target.files[0]); e.target.value = ''; });
+$('tapBtn').addEventListener('click', () => { setTap(false); if (mode === 'stream') playStream(); else { apply(); play(); } });
+$('fsBtn').addEventListener('click', toggleFs);
+
+function setTap(on) { needTap = on; $('tapOverlay').hidden = !on; }
+function flash(kind) { const f = $('flash'); setIcon(f, kind); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+function ripple(id) { const r = $(id); r.classList.remove('go'); void r.offsetWidth; r.classList.add('go'); }
+
+/* volume (personal, not synced) */
+const volRange = $('volRange');
+function renderVol() {
+  const v = video.muted ? 0 : video.volume;
+  volRange.value = v;
+  volRange.style.setProperty('--v', (v * 100) + '%');
+  setIcon($('muteBtn'), v === 0 ? 'mute' : 'vol');
+}
+function setVol(v) { v = clamp(v, 0, 1); video.volume = v; video.muted = v === 0; store.set('vol', v); renderVol(); }
+volRange.addEventListener('input', () => setVol(parseFloat(volRange.value)));
+$('muteBtn').addEventListener('click', () => { if (video.muted || video.volume === 0) { video.muted = false; if (video.volume === 0) video.volume = 1; } else video.muted = true; renderVol(); });
+video.volume = clamp(store.get('vol', 1), 0, 1) || 1;
+renderVol();
+
+/* fullscreen */
+function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function toggleFs() {
+  const el = $('main');
+  if (isFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+  if (el.requestFullscreen) {
+    el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+      if (isTouch && video.videoWidth > video.videoHeight && screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    }).catch(() => {});
+  } else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  else if (video.webkitEnterFullscreen && loaded) video.webkitEnterFullscreen();   // iPhone
+}
+function onFsChange() {
+  const fs = isFs();
+  document.body.classList.toggle('is-fs', fs);
+  setIcon($('fsBtn'), fs ? 'unfull' : 'full');
+  if (!fs && screen.orientation && screen.orientation.unlock) try { screen.orientation.unlock(); } catch (e) {}
+  updateUnread();
+}
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
+
+/* keyboard */
+document.addEventListener('keydown', e => {
+  if ($('room').hidden) return;
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type !== 'range';
+  if (e.key === 'Escape') { if (anyPopOpen()) closePops(); else if (inField) e.target.blur(); return; }
+  if (inField || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  const handled = () => { e.preventDefault(); poke(); };
+  if (k === ' ' || k === 'k') { handled(); userToggle(); }
+  else if (k === 'arrowleft') { handled(); userSkip(-5); }
+  else if (k === 'arrowright') { handled(); userSkip(5); }
+  else if (k === 'j') { handled(); userSkip(-10); }
+  else if (k === 'l') { handled(); userSkip(10); }
+  else if (k === 'arrowup') { handled(); setVol((video.muted ? 0 : video.volume) + 0.1); toast('Volume ' + Math.round(video.volume * 100) + '%'); }
+  else if (k === 'arrowdown') { handled(); setVol((video.muted ? 0 : video.volume) - 0.1); toast('Volume ' + Math.round(video.volume * 100) + '%'); }
+  else if (k === 'm') { handled(); $('muteBtn').click(); }
+  else if (k === 'f') { handled(); toggleFs(); }
+  else if (k === 'c') { handled(); cycleSubs(); }
+  else if (k === 't') { handled(); toggleChat(true); }
+});
+
+/* popovers */
+function closePops() { $('ccMenu').hidden = true; $('reactPop').hidden = true; $('ccBtn').classList.remove('on'); poke(); }
+$('ccBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('ccMenu').hidden; closePops(); if (open) { renderMenu(); $('ccMenu').hidden = false; $('ccBtn').classList.add('on'); } poke(); });
+$('reactBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('reactPop').hidden; closePops(); $('reactPop').hidden = !open; poke(); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop-wrap') && anyPopOpen()) closePops(); });
+
+/* banner / activity / toast */
+function showBanner(html, actions) {
+  const b = $('banner');
+  b.innerHTML = '<div>' + html + '</div><div class="acts"></div>';
+  (actions || []).forEach(a => { const btn = document.createElement('button'); btn.className = 'btn ' + (a.ghost ? 'ghost' : 'primary'); btn.textContent = a.label; btn.onclick = a.fn; b.querySelector('.acts').appendChild(btn); });
+  b.hidden = false;
+}
+function hideBanner() { $('banner').hidden = true; }
+function activity(html) {
+  const el = document.createElement('div'); el.innerHTML = html;
+  const box = $('activity'); box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.classList.add('out'), 3200);
+  setTimeout(() => el.remove(), 3700);
+}
+let toastTimer = null;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ════════════════════════════════════════════════════════════
+   SUBTITLES
+   Scanning runs in a background Worker and reads the file in
+   paced chunks, so it never competes with the video player.
+   ════════════════════════════════════════════════════════════ */
+const SIZES = [0.7, 0.85, 1, 1.15, 1.3, 1.5, 1.75];
+const subs = { tracks: [], active: null, offset: 0, size: store.get('subSize', 1), scanning: false, prog: 0, info: null, gen: 0 };
+document.documentElement.style.setProperty('--sub-scale', subs.size);
+const BAD_AUDIO = [[/^A_EAC3|^ec-3/i, 'E-AC-3 (Dolby Digital Plus)'], [/^A_AC3|^ac-3/i, 'AC-3 (Dolby Digital)'], [/^A_DTS|^dts/i, 'DTS'], [/^A_TRUEHD|^mlpa/i, 'Dolby TrueHD']];
+function badAudio(c) { for (const [re, n] of BAD_AUDIO) if (re.test(c || '')) return n; return ''; }
+
+let scanWorker = null;
+function getWorker() {
+  if (scanWorker !== null) return scanWorker;
+  try {
+    const src = $('subsSrc').textContent + '\n;(' + function () {
+      let cur = 0;
+      self.onmessage = async e => {
+        const { file, gen } = e.data;
+        cur = gen;
+        const sent = new Map();
+        let tracks = [];
+        const flush = () => tracks.forEach(t => {
+          const n = sent.get(t.id) || 0;
+          if (t.cues.length > n) { self.postMessage({ gen, t: 'cues', id: t.id, cues: t.cues.slice(n) }); sent.set(t.id, t.cues.length); }
         });
-    </script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-</body>
+        const info = await Subs.scanFile(file, {
+          cancelled: () => cur !== gen,
+          pace: true,
+          onInfo(i) { tracks = i.subs; self.postMessage({ gen, t: 'info', info: Object.assign({}, i, { subs: i.subs.map(t => Object.assign({}, t, { cues: [] })) }) }); },
+          onProgress(p) { flush(); self.postMessage({ gen, t: 'prog', p }); }
+        });
+        if (cur !== gen) return;
+        self.postMessage({ gen, t: 'done', subs: info ? info.subs.map(t => ({ id: t.id, cues: t.cues })) : [] });
+      };
+    } + ')();';
+    scanWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  } catch (e) { scanWorker = false; }
+  return scanWorker;
+}
 
+function scanSubs(f) {
+  const gen = ++subs.gen;
+  Object.assign(subs, { tracks: [], active: null, offset: 0, scanning: true, prog: 0, info: null });
+  renderCues(true); renderMenu(); $('ccDot').hidden = true;
+  const onInfo = info => {
+    if (gen !== subs.gen) return;
+    subs.info = info;
+    subs.tracks = info.subs;
+    autoPick();
+    renderMenu();
+    const a = info.audio[0];
+    const bad = a && badAudio(a.codec);
+    if (bad) showBanner('Heads-up: this file\'s audio is <b>' + bad + '</b>. Most browsers can\'t decode it, so you may get picture with <b>no sound</b>. Fix: convert the audio track to AAC (HandBrake or ffmpeg), or use a different copy.', [{ label: 'Got it', fn: hideBanner }]);
+  };
+  const onDone = () => {
+    if (gen !== subs.gen) return;
+    subs.scanning = false;
+    subs.tracks.forEach(t => { t.done = true; t.dirty = true; });
+    renderMenu();
+    resendSubs();
+    const usable = subs.tracks.filter(t => t.supported && t.cues.length);
+    if (!subs.active && usable.length) toast(usable.length + ' subtitle track' + (usable.length > 1 ? 's' : '') + ' found — press C or tap CC');
+  };
+  const w = getWorker();
+  if (w) {
+    w.onmessage = e => {
+      const m = e.data; if (m.gen !== gen || gen !== subs.gen) return;
+      if (m.t === 'info') onInfo(m.info);
+      else if (m.t === 'cues') { const t = subs.tracks.find(x => x.id === m.id); if (t) { t.cues.push(...m.cues); t.dirty = true; } }
+      else if (m.t === 'prog') { subs.prog = m.p; renderMenuProgress(); }
+      else if (m.t === 'done') { m.subs.forEach(s => { const t = subs.tracks.find(x => x.id === s.id); if (t) t.cues = s.cues; }); onDone(); }
+    };
+    w.postMessage({ file: f, gen });
+  } else {
+    Subs.scanFile(f, { cancelled: () => gen !== subs.gen, pace: true, onInfo, onProgress(p) { if (gen === subs.gen) { subs.prog = p; renderMenuProgress(); } } }).then(onDone);
+  }
+}
+
+function trackLabel(t, i) {
+  const lang = Subs.langName(t.lang);
+  const main = lang || t.name || ('Track ' + (i + 1));
+  const bits = [];
+  if (lang && t.name && t.name !== lang) bits.push(t.name);
+  if (t.forced) bits.push('forced');
+  bits.push(t.external ? 'from file' : t.fmt);
+  return { main, sub: bits.join(' · ') };
+}
+function autoPick() {
+  const pref = store.get('subLang', null);
+  if (pref === 'off') return;
+  const ok = subs.tracks.filter(t => t.supported);
+  let pick = null;
+  if (pref) pick = ok.find(t => (t.lang || '').toLowerCase() === pref && !t.forced) || null;
+  if (!pick && subs.info && subs.info.container === 'mkv') pick = ok.find(t => t.isDefault && !t.forced) || null;
+  if (pick) selectTrack(pick, true);
+}
+function selectTrack(t, silent) {
+  subs.active = t || null;
+  $('ccDot').hidden = !subs.active;
+  if (!silent) {
+    store.set('subLang', t ? (t.lang || '').toLowerCase() || null : 'off');
+    const i = subs.tracks.indexOf(t);
+    toast(t ? 'Subtitles: ' + trackLabel(t, i).main : 'Subtitles off');
+  }
+  renderCues(true); subLoop(); syncNativeTrack(); renderMenu();
+}
+function cycleSubs() {
+  const list = [null].concat(subs.tracks.filter(t => t.supported));
+  if (list.length === 1) { toast(subs.scanning ? 'Still reading subtitles from the file…' : 'No subtitles in this file — load a .srt from the CC menu'); return; }
+  const i = list.indexOf(subs.active);
+  selectTrack(list[(i + 1) % list.length]);
+}
+async function loadSubFile(f) {
+  if (!f) return;
+  try {
+    const cues = Subs.parseSubtitleFile(f.name, await f.arrayBuffer());
+    if (!cues.length) throw new Error('empty');
+    const t = { id: 'ext' + Date.now(), fmt: (f.name.split('.').pop() || '').toUpperCase(), lang: '', name: f.name.replace(/\.[^.]+$/, ''), supported: true, external: true, cues, done: true };
+    subs.tracks.push(t);
+    selectTrack(t, true);
+    toast('Loaded ' + cues.length + ' subtitle lines');
+    resendSubs();
+  } catch (e) { toast('Couldn\'t read that subtitle file'); }
+}
+
+let lastCueHtml = '', lastTopHtml = '';
+function renderCues(force) {
+  const t = subs.active;
+  let html = '', top = '';
+  if (t && t.cues.length) {
+    if (t.dirty) { t.cues.sort((a, b) => a.start - b.start); t.dirty = false; }
+    const now = curT() - subs.offset;
+    const c = t.cues;
+    let lo = 0, hi = c.length - 1, idx = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (c[mid].start <= now) { idx = mid; lo = mid + 1; } else hi = mid - 1; }
+    const act = [];
+    for (let i = idx; i >= 0 && i > idx - 30; i--) {
+      const end = isFinite(c[i].end) ? c[i].end : c[i].start + 4;
+      if (end > now) act.unshift(c[i]);
+    }
+    for (const q of act) { const h = '<div class="cue">' + q.html + '</div>'; if (q.top) top += h; else html += h; }
+  }
+  if (force || html !== lastCueHtml) { $('subs').innerHTML = html; lastCueHtml = html; }
+  if (force || top !== lastTopHtml) { $('subsTop').innerHTML = top; lastTopHtml = top; }
+}
+// subtitles only change a few times a second — 10 checks/s is plenty and costs nothing
+let subTimer = 0;
+function subLoop() {
+  clearInterval(subTimer);
+  renderCues();
+  if (subs.active) subTimer = setInterval(() => { if (!video.paused || mode === 'stream') renderCues(); }, 100);
+}
+
+/* iPhone native fullscreen can't show our overlay → mirror cues into a real text track */
+let nativeTrack = null;
+function syncNativeTrack() {
+  if (!nativeFs && !nativeTrack) return;
+  try {
+    if (!nativeTrack) nativeTrack = video.addTextTrack('subtitles', 'Subtitles', 'en');
+    while (nativeTrack.cues && nativeTrack.cues.length) nativeTrack.removeCue(nativeTrack.cues[0]);
+    if (subs.active && nativeFs && mode === 'file') {
+      const tmp = document.createElement('div');
+      for (const c of subs.active.cues) {
+        tmp.innerHTML = c.html.replace(/<br>/g, '\n');
+        const end = isFinite(c.end) ? c.end : c.start + 4;
+        nativeTrack.addCue(new VTTCue(c.start + subs.offset, end + subs.offset, tmp.textContent));
+      }
+    }
+    nativeTrack.mode = subs.active && nativeFs ? 'showing' : 'hidden';
+  } catch (e) {}
+}
+
+function renderMenuProgress() {
+  const p = $('ccMenu').querySelector('.prog div'), n = $('ccMenu').querySelector('.scan-note');
+  if (p) p.style.width = Math.round(subs.prog * 100) + '%';
+  if (n) n.textContent = 'Reading subtitles from the file… ' + Math.round(subs.prog * 100) + '%';
+}
+const CK = '<svg class="ck"><use href="#i-check"/></svg>';
+function renderMenu() {
+  const m = $('ccMenu');
+  let h = '<h4>Subtitles</h4>';
+  h += '<button class="opt' + (subs.active ? '' : ' sel') + '" data-sub="off">' + CK + '<span class="lbl">Off</span></button>';
+  subs.tracks.forEach((t, i) => {
+    const l = trackLabel(t, i);
+    let sub = l.sub;
+    if (!t.supported) sub += ' · image-based, can\'t be shown';
+    else if (!t.done && !t.external) sub += ' · loading…';
+    else if (!t.cues.length) sub += ' · empty';
+    h += '<button class="opt' + (subs.active === t ? ' sel' : '') + '" data-sub="' + i + '"' + (t.supported ? '' : ' disabled') + '>' + CK + '<span class="lbl">' + esc(l.main) + '<small>' + esc(sub) + '</small></span></button>';
+  });
+  if (subs.scanning) h += '<div class="note scan-note">Reading subtitles from the file… ' + Math.round(subs.prog * 100) + '%</div><div class="prog"><div style="width:' + Math.round(subs.prog * 100) + '%"></div></div>';
+  else if (mode === 'stream' && !subs.tracks.length) h += '<div class="note">No subtitles shared by the host.</div>';
+  else if (loaded && subs.info && !subs.tracks.some(t => !t.external)) h += '<div class="note">No subtitle tracks inside this file.</div>';
+  h += '<button class="opt" data-sub="load"><svg class="ck" style="opacity:1;color:var(--muted)"><use href="#i-file"/></svg><span class="lbl">Load subtitle file…<small>.srt · .vtt · .ass</small></span></button>';
+  h += '<hr><div class="stepper"><span>Text size</span><div class="ctl"><button data-size="-1" aria-label="Smaller">−</button><b>' + Math.round(subs.size * 100) + '%</b><button data-size="1" aria-label="Bigger">+</button></div></div>';
+  h += '<div class="stepper"><span>Timing</span><div class="ctl"><button data-off="-0.25" aria-label="Earlier">−</button><b>' + (subs.offset > 0 ? '+' : '') + subs.offset.toFixed(2) + 's</b><button data-off="0.25" aria-label="Later">+</button></div></div>';
+  const at = video.audioTracks;
+  const info = subs.info;
+  if (mode === 'file' && at && at.length > 1) {
+    h += '<hr><h4>Audio</h4>';
+    for (let i = 0; i < at.length; i++) {
+      const a = at[i];
+      h += '<button class="opt' + (a.enabled ? ' sel' : '') + '" data-audio="' + i + '">' + CK + '<span class="lbl">' + esc(Subs.langName(a.language) || a.label || 'Track ' + (i + 1)) + '</span></button>';
+    }
+  } else if (info && info.audio.length > 1) {
+    const names = info.audio.map((a, i) => Subs.langName(a.lang) || a.name || 'track ' + (i + 1));
+    h += '<hr><div class="note">This file has ' + info.audio.length + ' audio tracks (' + esc(names.join(', ')) + '). Browsers only play the first one (' + esc(names[0]) + ').</div>';
+  }
+  if (info && info.audio[0] && badAudio(info.audio[0].codec)) h += '<div class="note warn">Audio is ' + badAudio(info.audio[0].codec) + ' — most browsers can\'t play it.</div>';
+  m.innerHTML = h;
+}
+$('ccMenu').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  e.stopPropagation();
+  if (b.dataset.sub === 'off') { selectTrack(null); closePops(); }
+  else if (b.dataset.sub === 'load') { $('subInput').click(); closePops(); }
+  else if (b.dataset.sub != null) { selectTrack(subs.tracks[+b.dataset.sub]); closePops(); }
+  else if (b.dataset.size) {
+    let i = SIZES.indexOf(subs.size); if (i < 0) i = 2;
+    subs.size = SIZES[clamp(i + (+b.dataset.size), 0, SIZES.length - 1)];
+    store.set('subSize', subs.size);
+    document.documentElement.style.setProperty('--sub-scale', subs.size);
+    renderMenu(); poke();
+  } else if (b.dataset.off) {
+    subs.offset = Math.round((subs.offset + (+b.dataset.off)) * 100) / 100;
+    renderMenu(); renderCues(true); poke();
+  } else if (b.dataset.audio != null) {
+    const at = video.audioTracks; for (let i = 0; i < at.length; i++) at[i].enabled = i === +b.dataset.audio;
+    renderMenu();
+  }
+});
+
+/* ════════════════════════════════════════════════════════════
+   CHAT & REACTIONS
+   ════════════════════════════════════════════════════════════ */
+function chatVisible() { return !chatEl.classList.contains('closed') && chatEl.offsetWidth > 0; }
+function toggleChat(focus) {
+  const open = chatEl.classList.contains('closed');
+  chatEl.classList.toggle('closed', !open);
+  $('chatToggle').classList.toggle('on', open);
+  store.set('chat', open);
+  if (open && focus && !isTouch) setTimeout(() => $('chatInput').focus(), 50);
+  updateUnread();
+}
+$('chatToggle').addEventListener('click', () => toggleChat(true));
+$('chatBtn2').addEventListener('click', () => toggleChat(true));
+$('chatClose').addEventListener('click', () => toggleChat());
+function updateUnread() {
+  if (chatVisible()) unread = 0;
+  ['unread', 'unread2'].forEach(id => { $(id).hidden = !unread; $(id).textContent = unread > 9 ? '9+' : unread; });
+}
+$('chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('chatInput'), text = inp.value.trim();
+  if (!text || !net) return;
+  inp.value = '';
+  Promise.resolve(net.chat({ cid: CID, name: myName, text: text.slice(0, 400) })).catch(onNetError);
+});
+const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u;
+function onChat(m, key) {
+  if (!m || !m.text || seenChat.has(key)) return;
+  seenChat.add(key);
+  const mine = m.cid === CID;
+  const box = $('msgs');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const el = document.createElement('div');
+  el.className = 'm ' + (mine ? 'me' : 'them') + (EMOJI_ONLY.test(m.text) ? ' emoji' : '');
+  const showWho = m.cid !== lastMsgCid || (m.ts || 0) - lastMsgTs > 300000;
+  lastMsgCid = m.cid; lastMsgTs = m.ts || 0;
+  const time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  el.innerHTML = (showWho ? '<div class="who">' + (mine ? 'You' : esc(m.name)) + '</div>' : '') + '<div class="b" title="' + time + '">' + esc(m.text) + '</div>';
+  box.appendChild(el);
+  if (nearBottom || mine) box.scrollTop = box.scrollHeight;
+  if (chatReady && !mine) {
+    if (!chatVisible()) { unread++; updateUnread(); bubble(m); }
+  }
+}
+function sys(text) {
+  const el = document.createElement('div'); el.className = 'sys'; el.textContent = text;
+  const box = $('msgs'); box.appendChild(el); box.scrollTop = box.scrollHeight;
+  lastMsgCid = null;
+}
+function bubble(m) {
+  const el = document.createElement('div');
+  el.innerHTML = '<b>' + esc(m.name) + '</b>' + esc(m.text);
+  const box = $('bubbles'); box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.classList.add('out'), 5000);
+  setTimeout(() => el.remove(), 5600);
+}
+$('reactPop').innerHTML = REACTIONS.map(e => '<button data-e="' + e + '">' + e + '</button>').join('');
+$('reactPop').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !net) return;
+  net.fx({ cid: CID, name: myName, e: b.dataset.e });
+  poke();
+});
+function onFx(f) {
+  if (!fxReady || !f || !f.e || REACTIONS.indexOf(f.e) < 0) return;
+  const el = document.createElement('span');
+  el.textContent = f.e;
+  if (f.cid !== CID) { const n = document.createElement('i'); n.textContent = f.name || ''; el.appendChild(n); }
+  el.style.left = (f.cid === CID ? 70 + Math.random() * 20 : 8 + Math.random() * 20) + '%';
+  $('fxLayer').appendChild(el);
+  setTimeout(() => el.remove(), 2700);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ROOM / LANDING FLOW
+   ════════════════════════════════════════════════════════════ */
+function showLanding() {
+  $('landing').hidden = false; $('room').hidden = true; $('nameModal').hidden = true;
+  $('nameInput').value = myName;
+  const url = new URL(location.href);
+  if (url.searchParams.has('room')) { url.searchParams.delete('room'); history.replaceState(null, '', url); }
+}
+function landErr(msg) { const e = $('landErr'); e.textContent = msg; e.hidden = !msg; }
+function takeName(v) { v = String(v || '').trim().replace(/\s+/g, ' ').slice(0, 24); if (v) { myName = v; store.set('name', v); } return v; }
+$('createBtn').addEventListener('click', () => {
+  if (!takeName($('nameInput').value)) { landErr('Enter your name first.'); $('nameInput').focus(); return; }
+  enterRoom(genCode());
+});
+$('codeInput').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+$('joinForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!takeName($('nameInput').value)) { landErr('Enter your name first.'); $('nameInput').focus(); return; }
+  const c = $('codeInput').value.trim().toUpperCase();
+  if (c.length < 4) { landErr('Enter the room code your partner sent you.'); $('codeInput').focus(); return; }
+  enterRoom(c);
+});
+$('nameForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!takeName($('modalName').value)) { $('modalName').focus(); return; }
+  enterRoom($('modalCode').textContent);
+});
+
+function inviteUrl() { return location.origin + location.pathname + '?room=' + roomCode; }
+$('shareBtn').addEventListener('click', async () => {
+  const url = inviteUrl();
+  if (navigator.share && isTouch) {
+    try { await navigator.share({ title: 'Watch with me', text: 'Join my watch party (room ' + roomCode + ')', url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied — send it to your partner'); }
+  catch (e) { toast('Room code: ' + roomCode); }
+});
+
+function onNetError(err) {
+  const msg = String(err && (err.code || err.message) || err);
+  console.error('[together] sync error', err);
+  if (/permission/i.test(msg)) showBanner('The sync database refused access (Firebase rules). Open Firebase console → Realtime Database → Rules and allow read/write on <b>rooms</b>.', [{ label: 'OK', fn: hideBanner }]);
+}
+
+function enterRoom(code) {
+  roomCode = code;
+  const url = new URL(location.href);
+  url.searchParams.set('room', code);
+  history.replaceState(null, '', url);
+  document.title = 'Room ' + code + ' · Together';
+  $('landing').hidden = true; $('nameModal').hidden = true; $('room').hidden = false;
+  $('roomCode').textContent = code;
+  const chatPref = store.get('chat', true);
+  chatEl.classList.toggle('closed', !chatPref);
+  $('chatToggle').classList.toggle('on', chatPref);
+  renderStreamUI(); renderEmpty();
+  try { net = (window.__TOGETHER_NET__ || firebaseNet)(); }
+  catch (e) {
+    net = null;
+    $('empty').querySelector('h2').textContent = 'Can\'t reach the sync server';
+    $('emptyHint').innerHTML = 'The sync library didn\'t load. Check your internet connection, or turn off any ad / tracker blocker for this page, then reload.';
+    $('pickBtn').textContent = 'Reload'; $('pickBtn').onclick = e2 => { e2.stopImmediatePropagation(); location.reload(); };
+    return;
+  }
+  net.me({ name: myName, file: file ? file.name : '', dur: Math.round(dur()), buf: false, mode });
+  net.join(code, {
+    conn(c) {
+      clearTimeout(connTimer);
+      if (c) { connectedOnce = true; $('connPill').hidden = true; if (gotState) apply(); }
+      else connTimer = setTimeout(() => { $('connPill').hidden = false; $('connPill').textContent = connectedOnce ? 'Reconnecting…' : 'Connecting…'; }, connectedOnce ? 1500 : 4000);
+    },
+    state: onState,
+    members: onMembers,
+    chat: onChat,
+    chatReady() { chatReady = true; },
+    fx: onFx,
+    fxReady() { fxReady = true; },
+    stream: onStream,
+    anchor(a) { anchor = a && typeof a.pos === 'number' ? a : null; },
+    signal: onSignal,
+    error: onNetError
+  }, CID);
+  sys('You\'re in room ' + code + '. Share the link — only one of you needs the video file.');
+}
+
+window.addEventListener('pagehide', () => { if (hosting) stopHosting(true); if (viewer) stopViewing(true); if (net) net.leave(); });
+
+/* boot */
+(function boot() {
+  const code = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if (code && code.length >= 4) {
+    if (myName) enterRoom(code);
+    else { $('modalCode').textContent = code; $('nameModal').hidden = false; setTimeout(() => $('modalName').focus(), 50); }
+  } else showLanding();
+})();
+
+// expose for debugging in the console
+window.together = { get state() { return remote; }, get members() { return members; }, get mode() { return mode; }, get leader() { return leaderId(); }, get hosting() { return hosting; }, cid: CID, expected: () => expected(ref()), hostTime: () => hostTime() };
+})();
+
+</script>
+</body>
 </html>
