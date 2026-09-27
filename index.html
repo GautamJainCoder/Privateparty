@@ -1042,11 +1042,11 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   // handlers: onInfo({container, subs:[track], audio:[], video:[]}), onProgress(0..1), cancelled()
   async function scanFile(file, handlers) {
     const h = Object.assign({ onInfo() {}, onProgress() {}, cancelled: () => false }, handlers);
-    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-    const tag = String.fromCharCode(head[4], head[5], head[6], head[7]);
     let info = null;
     const wrap = Object.assign({}, h, { onInfo(i) { info = i; h.onInfo(i); } });
     try {
+      const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+      const tag = String.fromCharCode(head[4], head[5], head[6], head[7]);
       if (head[0] === 0x1A && head[1] === 0x45 && head[2] === 0xDF && head[3] === 0xA3) await scanMKV(file, wrap);
       else if (['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip', 'pnot'].includes(tag)) await scanMP4(file, wrap);
       else { h.onInfo({ container: 'other', subs: [], audio: [], video: [] }); return null; }
@@ -1116,6 +1116,13 @@ function fmt(t, withH) {
   return (h || withH) ? h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') : m + ':' + String(s).padStart(2, '0');
 }
 const fmtV = t => fmt(t, dur() >= 3600);
+// allow only the tiny tag set our own parser produces; everything else becomes plain text
+function safeCue(html) {
+  return String(html == null ? '' : html).replace(/[\u0001\u0002]/g, '')
+    .replace(/<(\/?)(i|b|u)>/gi, '\u0001$1$2\u0002').replace(/<br\s*\/?>/gi, '\u0001br\u0002')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\u0001/g, '<').replace(/\u0002/g, '>');
+}
 function setIcon(btn, name) { const u = btn && btn.querySelector('use'); if (u) u.setAttribute('href', '#i-' + name); }
 
 /* ── state ── */
@@ -1228,7 +1235,7 @@ function expected(s) {
 }
 // where the room is now: the leader's latest real position if it belongs to the current action, else the action itself
 function ref() {
-  if (remote && remote.playing && anchor && anchor.seq === remote.seq && typeof anchor.pos === 'number') return Object.assign({}, remote, { pos: anchor.pos, at: anchor.at });
+  if (remote && remote.playing && anchor && anchor.sid && anchor.sid === remote.id && typeof anchor.pos === 'number') return Object.assign({}, remote, { pos: anchor.pos, at: anchor.at });
   return remote;
 }
 function setTime(t) { internalSeekAt = performance.now(); try { video.currentTime = t; } catch (e) {} }
@@ -1254,12 +1261,13 @@ const amLeader = () => leaderId() === CID;
 
 function commit(act, playing, pos, debounce) {
   if (!net) return;
-  const s = { playing, pos, act, by: CID, name: myName, file: file ? file.name : (streamInfo ? streamInfo.file : ''), dur: Math.round(dur()), seq: ((remote && remote.seq) || 0) + 1 };
+  if (!isFinite(pos)) pos = mode === 'file' ? video.currentTime || 0 : 0;
+  const s = { playing: !!playing, pos, act, by: CID, name: myName, file: file ? file.name : (streamInfo ? streamInfo.file : ''), dur: Math.round(dur()) || 0, seq: ((remote && remote.seq) || 0) + 1, id: rid(8) };
   remote = Object.assign({}, s, { at: net.now() });           // optimistic: act locally at once
   clearTimeout(commitTimer);
   const send = () => {
     if (debounce && mode === 'file' && loaded) s.pos = video.currentTime;
-    net.setState(s).catch(onNetError);
+    try { Promise.resolve(net.setState(s)).catch(onNetError); } catch (e) { onNetError(e); }
   };
   if (debounce) commitTimer = setTimeout(send, 300); else send();
   lastAnchor = performance.now();
@@ -1301,8 +1309,8 @@ function tick() {
     if (nudging) { nudging = false; setRate(1); }
     if (ad > REANCHOR && now - lastAnchor > 1500) {
       lastAnchor = now;
-      anchor = { seq: remote.seq, pos: video.currentTime, at: net.now(), by: CID };
-      if (net.setAnchor) net.setAnchor({ seq: remote.seq, pos: video.currentTime, by: CID }).catch(() => {});
+      anchor = { sid: remote.id || '', pos: video.currentTime, at: net.now(), by: CID };
+      if (net.setAnchor && remote.id) Promise.resolve(net.setAnchor({ sid: remote.id, pos: video.currentTime, by: CID })).catch(() => {});
     }
     return;
   }
@@ -1328,7 +1336,7 @@ function userPause() {
 }
 function userToggle() { if (!loaded) return pickVideo(); (hostPausedNow() ? userPlay : userPause)(); }
 function userSeek(t, debounce) {
-  if (!loaded) return;
+  if (!loaded || !isFinite(t)) return;
   t = clamp(t, 0, dur());
   if (mode === 'stream') { commit('seek', !hostPausedNow(), t); seekGhost = { t, at: performance.now() }; updateBars(); poke(); return; }
   setTime(t);
@@ -1346,7 +1354,7 @@ function updateGuard() {
   const alone = others().length === 0;
   if (alone && mode === 'file' && loaded && remote && remote.playing) {
     guardOn = true;
-    net.guard({ playing: false, pos: video.currentTime, act: 'pause', by: CID, name: myName, file: file ? file.name : '', dur: Math.round(dur()), seq: (remote.seq || 0) + 1 });
+    net.guard({ playing: false, pos: video.currentTime || 0, act: 'pause', by: CID, name: myName, file: file ? file.name : '', dur: Math.round(dur()) || 0, seq: (remote.seq || 0) + 1, id: rid(8) });
   } else if (guardOn) { guardOn = false; net.guard(null); }
 }
 
@@ -1369,9 +1377,9 @@ function fixStale() {
   // nobody is here but the room says "playing" → it was left running. Park it.
   let p = expected(remote);
   if (remote.dur) p = Math.min(p, Math.max(0, remote.dur - 1));
-  const s = Object.assign({}, remote, { playing: false, pos: p, act: 'pause', by: CID, name: myName, seq: (remote.seq || 0) + 1 });
+  const s = Object.assign({}, remote, { playing: false, pos: p, act: 'pause', by: CID, name: myName, seq: (remote.seq || 0) + 1, id: rid(8) });
   remote = Object.assign({}, s, { at: net.now() });
-  net.setState(s).catch(() => {});
+  try { Promise.resolve(net.setState(s)).catch(() => {}); } catch (e) {}
 }
 
 function announce(s) {
@@ -1430,7 +1438,7 @@ function renderEmpty() {
   const withFile = o.find(x => x.file && x.mode === 'file');
   const watch = $('watchBtn'), pick = $('pickBtn'), h2 = $('empty').querySelector('h2');
   if (st) {
-    h2.textContent = esc(st.name) ? st.name + ' is streaming' : 'Live stream available';
+    h2.textContent = st.name ? st.name + ' is streaming' : 'Live stream available';
     $('emptyHint').innerHTML = '<b>' + esc(st.file) + '</b><br>Watch it straight from their player — no file needed.';
     watch.hidden = false; watch.innerHTML = '<svg><use href="#i-play"/></svg> Watch ' + esc(st.name) + '\'s stream';
     pick.className = 'btn ghost big'; pick.textContent = 'Open my own copy instead';
@@ -1447,7 +1455,7 @@ function renderEmpty() {
 /* ════════════════════════════════════════════════════════════
    VIDEO LOADING (own copy)
    ════════════════════════════════════════════════════════════ */
-function pickVideo() { $('fileInput').click(); }
+function pickVideo() { if (!net && roomCode) { location.reload(); return; } $('fileInput').click(); }
 function loadFile(f) {
   if (!f) return;
   if (/\.(srt|vtt|ass|ssa)$/i.test(f.name)) return loadSubFile(f);
@@ -1753,7 +1761,7 @@ function onHostMsg(m) {
     viewer && (viewer.subs = m.tracks.map(t => Object.assign({ id: 'rem' + t.i, supported: true, done: true, cues: [] }, t)));
   } else if (m.k === 'cues') {
     const t = viewer && viewer.subs && viewer.subs[m.i];
-    if (t) m.cues.forEach(c => t.cues.push({ start: c[0], end: c[1], html: c[2], top: !!c[3] }));
+    if (t && Array.isArray(m.cues)) m.cues.forEach(c => { if (Array.isArray(c) && isFinite(c[0])) t.cues.push({ start: +c[0], end: +c[1], html: safeCue(c[2]), top: !!c[3] }); });
   } else if (m.k === 'subs-end') {
     if (!viewer || !viewer.subs) return;
     const keepLang = subs.active && subs.active.lang;
@@ -1870,7 +1878,7 @@ function updateBars() {
 }
 setInterval(() => { if (mode === 'stream' && loaded && !scrubbing) { updateBars(); if (video.paused) renderCues(); } }, 250);
 let scrubT = 0, lastScrubSeek = 0;
-function posFrom(e) { const r = seekEl.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * dur(); }
+function posFrom(e) { const r = seekEl.getBoundingClientRect(); if (!r.width) return curT(); return clamp((e.clientX - r.left) / r.width, 0, 1) * dur(); }
 function moveTip(e) {
   const r = seekEl.getBoundingClientRect();
   const x = clamp(e.clientX - r.left, 0, r.width);
@@ -1882,9 +1890,10 @@ seekEl.addEventListener('pointerdown', e => {
   if (!loaded) return;
   e.preventDefault();
   scrubbing = true;
-  seekEl.setPointerCapture(e.pointerId);
+  scrubT = posFrom(e);
   seekEl.classList.add('drag');
-  scrubT = posFrom(e); moveTip(e); updateBars();
+  try { seekEl.setPointerCapture(e.pointerId); } catch (err) {}
+  moveTip(e); updateBars();
 });
 seekEl.addEventListener('pointermove', e => {
   moveTip(e);
@@ -1895,9 +1904,10 @@ seekEl.addEventListener('pointermove', e => {
 });
 function endScrub(e) {
   if (!scrubbing) return;
+  if (e.type === 'pointerup') scrubT = posFrom(e);
   scrubbing = false;
   seekEl.classList.remove('drag');
-  userSeek(posFrom(e));
+  userSeek(scrubT);
 }
 seekEl.addEventListener('pointerup', endScrub);
 seekEl.addEventListener('pointercancel', endScrub);
@@ -2071,14 +2081,17 @@ function getWorker() {
           const n = sent.get(t.id) || 0;
           if (t.cues.length > n) { self.postMessage({ gen, t: 'cues', id: t.id, cues: t.cues.slice(n) }); sent.set(t.id, t.cues.length); }
         });
-        const info = await Subs.scanFile(file, {
-          cancelled: () => cur !== gen,
-          pace: true,
-          onInfo(i) { tracks = i.subs; self.postMessage({ gen, t: 'info', info: Object.assign({}, i, { subs: i.subs.map(t => Object.assign({}, t, { cues: [] })) }) }); },
-          onProgress(p) { flush(); self.postMessage({ gen, t: 'prog', p }); }
-        });
+        let info = null;
+        try {
+          info = await Subs.scanFile(file, {
+            cancelled: () => cur !== gen,
+            pace: true,
+            onInfo(i) { tracks = i.subs; self.postMessage({ gen, t: 'info', info: Object.assign({}, i, { subs: i.subs.map(t => Object.assign({}, t, { cues: [] })) }) }); },
+            onProgress(p) { flush(); self.postMessage({ gen, t: 'prog', p }); }
+          });
+        } catch (err) { info = null; }
         if (cur !== gen) return;
-        self.postMessage({ gen, t: 'done', subs: info ? info.subs.map(t => ({ id: t.id, cues: t.cues })) : [] });
+        self.postMessage({ gen, t: 'done', subs: info && info.subs ? info.subs.map(t => ({ id: t.id, cues: t.cues })) : [] });
       };
     } + ')();';
     scanWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
@@ -2118,9 +2131,10 @@ function scanSubs(f) {
       else if (m.t === 'prog') { subs.prog = m.p; renderMenuProgress(); }
       else if (m.t === 'done') { m.subs.forEach(s => { const t = subs.tracks.find(x => x.id === s.id); if (t) t.cues = s.cues; }); onDone(); }
     };
+    w.onerror = () => { scanWorker = false; onDone(); };
     w.postMessage({ file: f, gen });
   } else {
-    Subs.scanFile(f, { cancelled: () => gen !== subs.gen, pace: true, onInfo, onProgress(p) { if (gen === subs.gen) { subs.prog = p; renderMenuProgress(); } } }).then(onDone);
+    Subs.scanFile(f, { cancelled: () => gen !== subs.gen, pace: true, onInfo, onProgress(p) { if (gen === subs.gen) { subs.prog = p; renderMenuProgress(); } } }).catch(() => {}).then(onDone);
   }
 }
 
@@ -2271,7 +2285,7 @@ $('ccMenu').addEventListener('click', e => {
     renderMenu(); poke();
   } else if (b.dataset.off) {
     subs.offset = Math.round((subs.offset + (+b.dataset.off)) * 100) / 100;
-    renderMenu(); renderCues(true); poke();
+    renderMenu(); renderCues(true); syncNativeTrack(); poke();
   } else if (b.dataset.audio != null) {
     const at = video.audioTracks; for (let i = 0; i < at.length; i++) at[i].enabled = i === +b.dataset.audio;
     renderMenu();
@@ -2429,7 +2443,7 @@ function enterRoom(code) {
     net = null;
     $('empty').querySelector('h2').textContent = 'Can\'t reach the sync server';
     $('emptyHint').innerHTML = 'The sync library didn\'t load. Check your internet connection, or turn off any ad / tracker blocker for this page, then reload.';
-    $('pickBtn').textContent = 'Reload'; $('pickBtn').onclick = e2 => { e2.stopImmediatePropagation(); location.reload(); };
+    $('pickBtn').textContent = 'Reload';
     return;
   }
   net.me({ name: myName, file: file ? file.name : '', dur: Math.round(dur()), buf: false, mode });
