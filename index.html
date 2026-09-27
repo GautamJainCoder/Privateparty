@@ -1089,7 +1089,9 @@ const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' }
 ];
-const STREAM_MAX_BITRATE = 8000000;   // 8 Mbps ceiling; WebRTC adapts down to the host's upload speed
+const STREAM_MAX_BITRATE = 5000000;   // 5 Mbps ceiling; WebRTC adapts down to the host's upload speed
+const STREAM_MAX_HEIGHT = 1080;       // never encode more than 1080p (4K encoding can exhaust the tab's memory)
+const STREAM_MAX_FPS = 30;
 
 /* ── sync tuning ── */
 const HARD_SEEK = 1.5;      // follower is this far off → jump
@@ -1472,7 +1474,7 @@ function loadFile(f) {
   video.srcObject = null;
   video.src = objectUrl;
   video.load();
-  capStream = null;
+  capStream = null; stopCanvasCapture(); fwLast = -1; fwStuck = 0;
   if (net) net.me({ file: f.name, dur: 0, buf: false, mode: 'file' });
   scanSubs(f);
   if ('mediaSession' in navigator) try { navigator.mediaSession.metadata = new MediaMetadata({ title: f.name.replace(/\.[^.]+$/, ''), artist: 'Together' }); } catch (e) {}
@@ -1492,19 +1494,41 @@ video.addEventListener('loadedmetadata', () => {
   else maybeOfferStream();
   if (!remote && !hosting) toast('Ready — press play when you both are');
 });
-video.addEventListener('loadeddata', () => {
-  if (mode === 'file' && loaded && video.videoWidth === 0 && subs.info && subs.info.video.length) showVideoError('picture');
-});
+video.addEventListener('loadeddata', checkPicture);
+video.addEventListener('playing', () => setTimeout(checkPicture, 300));
 video.addEventListener('error', () => { if (mode === 'file' && file) showVideoError('file'); });
 
+// a file this browser can't show: explain exactly why, unload it, and let the room know so
+// whoever CAN play it gets offered to stream it here
 function showVideoError(kind) {
+  if (mode !== 'file' || !file) return;
   const vc = subs.info && subs.info.video[0] ? codecName(subs.info.video[0].codec) : '';
-  const msg = kind === 'picture'
-    ? 'Sound works but this browser can\'t decode the picture' + (vc ? ' (' + vc + ')' : '') + '. Try Safari or Edge, or an H.264 version of the file.'
-    : 'This browser can\'t play this file' + (vc ? ' (video: ' + vc + ')' : '') + '. Chrome/Edge play most MP4 & MKV (H.264). Safari can\'t open MKV at all.';
-  if (kind === 'file') { loaded = false; stage.classList.remove('loaded'); $('empty').hidden = false; }
-  const el = $('videoErr'); el.textContent = msg; el.hidden = false;
-  if (kind === 'picture') showBanner(esc(msg), [{ label: 'OK', fn: hideBanner }]);
+  const ext = (file.name.split('.').pop() || '').toUpperCase();
+  const what = kind === 'picture'
+    ? 'This browser can play the sound but not the picture of this file' + (vc ? ' (video format: ' + vc + ')' : '') + '.'
+    : 'This browser can\'t open this file' + (vc ? ' (video format: ' + vc + ')' : ext ? ' (' + ext + ')' : '') + '.'
+      + (/^MKV$/.test(ext) && /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg\//.test(navigator.userAgent) ? ' Safari can\'t open MKV files — use Chrome.' : '');
+  const holder = others().find(o => o.file && o.mode === 'file');
+  const fix = streamInfo && streamInfo.host !== CID
+    ? ' Tap “Watch ' + streamInfo.name + '\'s stream” — you don\'t need to play the file yourself.'
+    : holder ? ' Ask ' + holder.name + ' to tap Stream — you\'ll watch it without needing to play the file.'
+    : ' Fix: convert it to MP4 (H.264 video + AAC audio) with the free HandBrake app — that plays everywhere.';
+  internalPauseAt = performance.now();
+  try { video.pause(); } catch (e) {}
+  video.removeAttribute('src'); try { video.load(); } catch (e) {}
+  if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+  if (hosting) stopHosting(true);
+  file = null; mode = 'none'; loaded = false;
+  subs.gen++; subs.scanning = false;
+  stage.classList.remove('loaded'); $('empty').hidden = false;
+  if (net) net.me({ file: '', dur: 0, buf: false, mode: 'none' });
+  renderEmpty(); renderStreamUI();
+  const el = $('videoErr'); el.textContent = what + fix; el.hidden = false;
+}
+// "sound but no picture" (e.g. H.265 on a device without an H.265 decoder)
+function checkPicture() {
+  if (mode !== 'file' || !loaded || !subs.info || !subs.info.video.length) return;
+  if (video.readyState >= 2 && video.videoWidth === 0) showVideoError('picture');
 }
 function codecName(c) {
   c = String(c || '');
@@ -1558,15 +1582,67 @@ function captured() {
   }
   return capStream;
 }
+/* Backup capture: some videos (10-bit, some H.265/HDR) play fine locally but the browser's
+   direct capture produces no frames. Then we redraw each frame onto a ≤1080p canvas and send that. */
+let canvasCap = null;          // { cv, cx, track, raf, ticker }
+function startCanvasCapture() {
+  if (canvasCap) return canvasCap;
+  const cv = document.createElement('canvas');
+  const cx = cv.getContext('2d', { alpha: false });
+  if (!cx || !cv.captureStream) return null;
+  const track = cv.captureStream(STREAM_MAX_FPS).getVideoTracks()[0];
+  if (track && 'contentHint' in track) track.contentHint = 'motion';
+  canvasCap = { cv, cx, track, raf: 0, ticker: null };
+  const draw = () => {
+    if (!canvasCap || video.readyState < 2 || !video.videoWidth) return;
+    const s = Math.min(1, STREAM_MAX_HEIGHT / video.videoHeight, 1920 / video.videoWidth);
+    const w = Math.round(video.videoWidth * s / 2) * 2, h = Math.round(video.videoHeight * s / 2) * 2;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    try { cx.drawImage(video, 0, 0, w, h); } catch (e) {}
+  };
+  canvasCap.draw = draw;
+  const loop = () => { draw(); if (canvasCap && !document.hidden) canvasCap.raf = video.requestVideoFrameCallback ? video.requestVideoFrameCallback(loop) : requestAnimationFrame(loop); };
+  canvasCap.loop = loop;
+  // background tabs pause rendering callbacks; a worker's clock keeps frames flowing
+  try {
+    canvasCap.ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),' + Math.round(1000 / STREAM_MAX_FPS) + ')'], { type: 'text/javascript' })));
+    canvasCap.ticker.onmessage = () => { if (document.hidden) draw(); };
+  } catch (e) {}
+  loop();
+  return canvasCap;
+}
+function stopCanvasCapture() {
+  if (!canvasCap) return;
+  try { canvasCap.ticker && canvasCap.ticker.terminate(); } catch (e) {}
+  try { canvasCap.track && canvasCap.track.stop(); } catch (e) {}
+  canvasCap = null;
+}
+document.addEventListener('visibilitychange', () => { if (canvasCap && !document.hidden) canvasCap.loop(); });
+['seeked', 'loadeddata', 'pause'].forEach(ev => video.addEventListener(ev, () => { if (canvasCap) canvasCap.draw(); }));
+// watchdog: host is playing but zero frames are being sent → switch to the backup capture
+let fwLast = -1, fwStuck = 0;
+setInterval(async () => {
+  if (!hosting || canvasCap || video.paused || video.readyState < 3 || !video.videoWidth) { fwStuck = 0; return; }
+  let sent = 0, live = 0;
+  for (const p of peers.values()) {
+    if (p.pc.connectionState !== 'connected') continue;
+    live++;
+    try { (await p.pc.getStats()).forEach(x => { if (x.type === 'outbound-rtp' && x.kind === 'video') sent += x.framesEncoded || 0; }); } catch (e) {}
+  }
+  if (!live) { fwStuck = 0; fwLast = -1; return; }
+  fwStuck = sent <= fwLast ? fwStuck + 1 : 0;
+  fwLast = sent;
+  if (fwStuck >= 2) { fwStuck = 0; if (startCanvasCapture()) { pushTracks(); console.info('[together] switched stream to backup capture (direct capture sent no frames)'); } }
+}, 1500);
 function pushTracks() {
   if (!hosting) return;
   const cs = captured(); if (!cs) return;
-  const v = cs.getVideoTracks()[0] || null, a = cs.getAudioTracks()[0] || null;
+  const v = (canvasCap && canvasCap.track) || cs.getVideoTracks()[0] || null, a = cs.getAudioTracks()[0] || null;
   if (v && 'contentHint' in v) v.contentHint = 'motion';
   for (const p of peers.values()) for (const tr of p.pc.getTransceivers()) {
     const k = tr.receiver && tr.receiver.track && tr.receiver.track.kind;
     const t = k === 'video' ? v : k === 'audio' ? a : null;
-    if (t && tr.sender.track !== t) tr.sender.replaceTrack(t).catch(() => {});
+    if (t && tr.sender.track !== t) tr.sender.replaceTrack(t).then(() => tuneSenders(p.pc)).catch(() => {});
   }
 }
 function startHosting() {
@@ -1584,6 +1660,7 @@ function stopHosting(silent) {
   hosting = false;
   for (const [id, p] of peers) { try { net.signal(id, { type: 'bye' }); } catch (e) {} try { p.pc.close(); } catch (e) {} }
   peers.clear();
+  stopCanvasCapture();
   if (net) net.setStream(null).catch(() => {});
   renderStreamUI();
   if (!silent) toast('Streaming stopped');
@@ -1616,20 +1693,25 @@ function hostAccept(m) {
       if (t) await tr.sender.replaceTrack(t);
     }
     await pc.setLocalDescription(await pc.createAnswer());
+    tuneSenders(pc);
     net.signal(m.from, { type: 'answer', sdp: pc.localDescription.sdp });
   })().catch(e => console.warn('[together] host negotiation failed', e));
   renderStreamUI();
 }
 function tuneSenders(pc) {
+  const h = canvasCap ? canvasCap.cv.height : (video.videoHeight || 0);
+  const scale = h > STREAM_MAX_HEIGHT ? h / STREAM_MAX_HEIGHT : 1;
   for (const s of pc.getSenders()) {
     if (!s.track || s.track.kind !== 'video') continue;
     try {
       const p = s.getParameters();
       if (!p.encodings || !p.encodings.length) continue;
-      p.encodings[0].maxBitrate = STREAM_MAX_BITRATE;
-      p.degradationPreference = 'maintain-framerate';
-      s.setParameters(p).catch(() => {});
-    } catch (e) {}
+      const e = p.encodings[0];
+      e.maxBitrate = STREAM_MAX_BITRATE;
+      e.maxFramerate = STREAM_MAX_FPS;
+      e.scaleResolutionDownBy = scale;
+      s.setParameters(p).catch(err => console.warn('[together] could not cap stream quality', err));
+    } catch (err) {}
   }
 }
 // host → viewers: position reports 4× a second (drives their seek bar & subtitles)
@@ -1690,15 +1772,8 @@ async function watchStream() {
   Object.assign(host, { t: 0, p: true, d: st.dur || 0, rx: 0 });
   subs.gen++; Object.assign(subs, { tracks: [], active: null, offset: 0, scanning: false, info: { container: 'stream', subs: [], audio: [], video: [] } });
   renderCues(true);
-  const tv = pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.addTransceiver('video', { direction: 'recvonly' });
   pc.addTransceiver('audio', { direction: 'recvonly' });
-  try {
-    const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities('video');
-    if (caps && tv.setCodecPreferences) {
-      const rank = c => /H264/i.test(c.mimeType) ? 0 : /VP9/i.test(c.mimeType) ? 1 : /VP8/i.test(c.mimeType) ? 2 : /AV1/i.test(c.mimeType) ? 3 : 4;
-      tv.setCodecPreferences(caps.codecs.slice().sort((a, b) => rank(a) - rank(b)));
-    }
-  } catch (e) {}
   const dc = pc.createDataChannel('sync');
   viewer.dc = dc;
   dc.onmessage = e => { try { onHostMsg(JSON.parse(e.data)); } catch (err) {} };
@@ -2109,6 +2184,8 @@ function scanSubs(f) {
     subs.tracks = info.subs;
     autoPick();
     renderMenu();
+    checkPicture();
+    if (mode !== 'file') return;
     const a = info.audio[0];
     const bad = a && badAudio(a.codec);
     if (bad) showBanner('Heads-up: this file\'s audio is <b>' + bad + '</b>. Most browsers can\'t decode it, so you may get picture with <b>no sound</b>. Fix: convert the audio track to AAC (HandBrake or ffmpeg), or use a different copy.', [{ label: 'Got it', fn: hideBanner }]);
@@ -2479,7 +2556,7 @@ window.addEventListener('pagehide', () => { if (hosting) stopHosting(true); if (
 })();
 
 // expose for debugging in the console
-window.together = { get state() { return remote; }, get members() { return members; }, get mode() { return mode; }, get leader() { return leaderId(); }, get hosting() { return hosting; }, cid: CID, expected: () => expected(ref()), hostTime: () => hostTime() };
+window.together = { get state() { return remote; }, get members() { return members; }, get mode() { return mode; }, get leader() { return leaderId(); }, get hosting() { return hosting; }, cid: CID, expected: () => expected(ref()), hostTime: () => hostTime(), get peers() { return [...peers.values()].map(p => p.pc); } };
 })();
 
 </script>
