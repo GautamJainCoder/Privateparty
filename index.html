@@ -691,6 +691,25 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     }
   }
 
+  // bit depth of the picture, read from the codec's own configuration record
+  function bitDepthOf(codec, cfg) {
+    try {
+      if (!cfg || cfg.length < 7) return 0;
+      if (/HEVC|hvc1|hev1/i.test(codec)) return cfg.length > 17 ? (cfg[17] & 7) + 8 : 0;
+      if (/AVC|avc1|avc3/i.test(codec)) {
+        const profile = cfg[1];
+        if (![100, 110, 122, 144, 244].includes(profile)) return 8;
+        let o = 5, n = cfg[o++] & 0x1f;
+        for (let i = 0; i < n; i++) { const l = (cfg[o] << 8) | cfg[o + 1]; o += 2 + l; }
+        n = cfg[o++];
+        for (let i = 0; i < n; i++) { const l = (cfg[o] << 8) | cfg[o + 1]; o += 2 + l; }
+        if (o + 1 < cfg.length) return (cfg[o + 1] & 7) + 8;
+        return profile === 110 ? 10 : 8;
+      }
+      if (/AV1|av01/i.test(codec) && cfg.length > 2) return (cfg[2] & 0x40) ? ((cfg[2] & 0x20) ? 12 : 10) : 8;
+    } catch (e) {}
+    return 0;
+  }
   const TOP_IDS = new Set([0x1F43B675, 0x1C53BB6B, 0x1254C367, 0x1043A770, 0x1941A469, 0x114D9B74, 0x1549A966, 0x1654AE6B]);
   const MKV_TEXT = { 'S_TEXT/UTF8': 'SRT', 'S_TEXT/ASCII': 'SRT', 'S_TEXT/ASS': 'ASS', 'S_TEXT/SSA': 'SSA', 'S_ASS': 'ASS', 'S_SSA': 'SSA', 'S_TEXT/WEBVTT': 'VTT', 'D_WEBVTT/SUBTITLES': 'VTT', 'D_WEBVTT/CAPTIONS': 'VTT' };
   const MKV_IMAGE = { 'S_HDMV/PGS': 'PGS', 'S_VOBSUB': 'VobSub', 'S_DVBSUB': 'DVB', 'S_HDMV/TEXTST': 'TextST', 'S_KATE': 'Kate' };
@@ -699,7 +718,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     const out = [];
     for (const te of kids(u8, s, e)) {
       if (te.id !== 0xAE) continue;
-      const t = { num: 0, type: 0, codec: '', lang: 'eng', name: '', def: true, forced: false, comp: null };
+      const t = { num: 0, type: 0, codec: '', lang: 'eng', name: '', def: true, forced: false, comp: null, width: 0, height: 0, priv: null };
       let langBcp = '';
       for (const c of kids(u8, te.s, te.e)) {
         const d = u8.subarray(c.s, c.e);
@@ -712,6 +731,13 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
           case 0x536E: t.name = str(d); break;
           case 0x88: t.def = uint(d) === 1; break;
           case 0x55AA: t.forced = uint(d) === 1; break;
+          case 0x63A2: t.priv = u8.slice(c.s, c.e); break;           // CodecPrivate (avcC / hvcC)
+          case 0xE0:                                                  // Video: PixelWidth / PixelHeight
+            for (const v of kids(u8, c.s, c.e)) {
+              if (v.id === 0xB0) t.width = uint(u8.subarray(v.s, v.e));
+              if (v.id === 0xBA) t.height = uint(u8.subarray(v.s, v.e));
+            }
+            break;
           case 0x6D80: // ContentEncodings
             for (const enc of kids(u8, c.s, c.e)) {
               if (enc.id !== 0x6240) continue;
@@ -829,7 +855,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
             list.push(tr);
             if (fmt) subs.set(t.num, tr);
           } else if (t.type === 2) audio.push({ codec: t.codec, lang: t.lang, name: t.name });
-          else if (t.type === 1) video.push({ codec: t.codec });
+          else if (t.type === 1) video.push({ codec: t.codec, width: t.width, height: t.height, bitDepth: bitDepthOf(t.codec, t.priv) });
         });
         h.onInfo({ container: 'mkv', subs: list, audio, video });
         if (!subs.size) return; // nothing to scan
@@ -937,7 +963,18 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
       const flags = tkhd ? dv.getUint32(tkhd.s) & 0xFFFFFF : 1;
 
       if (handler === 'soun') { audio.push({ codec, lang }); continue; }
-      if (handler === 'vide') { video.push({ codec }); continue; }
+      if (handler === 'vide') {
+        let width = 0, height = 0, bitDepth = 0;
+        try {
+          const entSize = dv.getUint32(stsd.s + 8), ent = stsd.s + 16, entEnd = Math.min(stsd.e, stsd.s + 8 + entSize);
+          width = dv.getUint16(ent + 24); height = dv.getUint16(ent + 26);
+          for (const b of boxes(dv, ent + 78, entEnd)) {
+            if (b.type === 'avcC' || b.type === 'hvcC' || b.type === 'av1C') { bitDepth = bitDepthOf(codec, new Uint8Array(buf, b.s, b.e - b.s)); break; }
+          }
+        } catch (e) {}
+        video.push({ codec, width, height, bitDepth });
+        continue;
+      }
       if (!['sbtl', 'text', 'subt', 'clcp'].includes(handler)) continue;
 
       const fmt = { tx3g: 'mov_text', text: 'QT text', wvtt: 'VTT', c608: 'CEA-608', c708: 'CEA-708', stpp: 'TTML' }[codec] || codec;
@@ -1089,6 +1126,9 @@ const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' }
 ];
+// OPTIONAL relay server for networks that block direct device-to-device video (many home/mobile
+// networks do). Free account at metered.ca → paste the app name + API key here. Empty = direct only.
+const TURN = { meteredApp: 'teletogether', meteredKey: 'd333c2794335fc1af327bd4081f985d09d20' };
 const STREAM_MAX_BITRATE = 5000000;   // 5 Mbps ceiling; WebRTC adapts down to the host's upload speed
 const STREAM_MAX_HEIGHT = 1080;       // never encode more than 1080p (4K encoding can exhaust the tab's memory)
 const STREAM_MAX_FPS = 30;
@@ -1100,6 +1140,23 @@ const NUDGE_STOP = 0.03;    // stop once this close
 const NUDGE = 0.05;         // ±5 % speed, pitch preserved
 const REANCHOR = 0.08;      // leader re-publishes its real position if it drifts this far from the room clock
 const REACTIONS = ['❤️', '😂', '😮', '😭', '🔥', '👏'];
+
+let iceCache = null;
+const FORCE_RELAY = /[?&]relay=1\b/.test(location.search);
+const rtcConfig = servers => FORCE_RELAY ? { iceServers: servers, iceTransportPolicy: 'relay' } : { iceServers: servers };
+async function iceServers() {
+  if (!TURN.meteredApp || !TURN.meteredKey) return ICE_SERVERS;
+  if (iceCache && Date.now() - iceCache.at < 3600000) return iceCache.list;
+  try {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl && setTimeout(() => ctl.abort(), 4000);          // never hold up a stream for a slow relay API
+    const r = await fetch('https://' + TURN.meteredApp + '.metered.live/api/v1/turn/credentials?apiKey=' + encodeURIComponent(TURN.meteredKey), ctl ? { signal: ctl.signal } : {});
+    clearTimeout(timer);
+    const list = r.ok ? await r.json() : null;
+    if (Array.isArray(list) && list.length) { iceCache = { at: Date.now(), list: ICE_SERVERS.concat(list) }; return iceCache.list; }
+  } catch (e) { console.warn('[together] relay server unavailable, trying direct only', e); }
+  return ICE_SERVERS;
+}
 
 /* ── tiny helpers ── */
 const $ = id => document.getElementById(id);
@@ -1490,6 +1547,7 @@ video.addEventListener('loadedmetadata', () => {
   apply();
   renderPresence();
   poke();
+  formatAdvice();
   if (hosting) { net.setStream(streamRecord()).catch(() => {}); pushTracks(); }
   else maybeOfferStream();
   if (!remote && !hosting) toast('Ready — press play when you both are');
@@ -1502,8 +1560,9 @@ video.addEventListener('error', () => { if (mode === 'file' && file) showVideoEr
 // whoever CAN play it gets offered to stream it here
 function showVideoError(kind) {
   if (mode !== 'file' || !file) return;
-  const vc = subs.info && subs.info.video[0] ? codecName(subs.info.video[0].codec) : '';
+  const vc = subs.info && subs.info.video[0] ? describeVideo(subs.info.video[0]) : '';
   const ext = (file.name.split('.').pop() || '').toUpperCase();
+  const failedName = file.name;
   const what = kind === 'picture'
     ? 'This browser can play the sound but not the picture of this file' + (vc ? ' (video format: ' + vc + ')' : '') + '.'
     : 'This browser can\'t open this file' + (vc ? ' (video format: ' + vc + ')' : ext ? ' (' + ext + ')' : '') + '.'
@@ -1524,12 +1583,35 @@ function showVideoError(kind) {
   if (net) net.me({ file: '', dur: 0, buf: false, mode: 'none' });
   renderEmpty(); renderStreamUI();
   const el = $('videoErr'); el.textContent = what + fix; el.hidden = false;
+  note(myName + '\'s browser can\'t ' + (kind === 'picture' ? 'show the picture of' : 'open') + ' “' + failedName + '”' + (vc ? ' (' + vc + ')' : ' (' + ext + ')') + '.');
 }
+// a system line everyone in the room sees in chat (so problems are visible on both sides)
+function note(text) { if (net) Promise.resolve(net.chat({ cid: CID, name: myName, text: String(text).slice(0, 300), sys: 1 })).catch(() => {}); }
 // "sound but no picture" (e.g. H.265 on a device without an H.265 decoder)
+let advised = null;
+function formatAdvice() {
+  if (mode !== 'file' || !loaded || !subs.info || !file || advised === file.name) return;
+  advised = file.name;
+  const v = subs.info.video[0];
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const bits = [];
+  if (subs.info.container === 'mkv' && /^(mp4|mov|m4v)$/.test(ext)) bits.push('This file is really an <b>MKV</b> — renaming it to .' + esc(ext) + ' doesn\'t change what\'s inside.');
+  if (hardVideo(v)) bits.push('It\'s <b>' + esc(describeVideo(v)) + '</b>. It plays here, but many Windows laptops and Android phones can\'t decode this format — so instead of friends opening their own copy, tap <b>Stream</b> and they\'ll watch it from your player.');
+  if (!bits.length) return;
+  if (!$('banner').hidden && /audio is/.test($('banner').textContent)) return;   // the no-sound warning matters more
+  showBanner(bits.join(' '), [{ label: 'Got it', fn: hideBanner, ghost: true }].concat(canHost() && !hosting ? [{ label: 'Stream it now', fn: startHosting }] : []));
+}
 function checkPicture() {
   if (mode !== 'file' || !loaded || !subs.info || !subs.info.video.length) return;
   if (video.readyState >= 2 && video.videoWidth === 0) showVideoError('picture');
 }
+function describeVideo(v) {
+  if (!v) return '';
+  const h = v.height || 0;
+  const res = h >= 2000 ? '4K' : h >= 1400 ? '1440p' : h >= 1000 ? '1080p' : h >= 700 ? '720p' : h ? h + 'p' : '';
+  return [res, codecName(v.codec), v.bitDepth > 8 ? v.bitDepth + '-bit' : ''].filter(Boolean).join(' · ');
+}
+const hardVideo = v => !!v && (/HEVC|hvc1|hev1/i.test(v.codec || '') || v.bitDepth > 8 || (v.height || 0) > 1440);
 function codecName(c) {
   c = String(c || '');
   if (/HEVC|hvc1|hev1/i.test(c)) return 'HEVC / H.265';
@@ -1625,21 +1707,29 @@ setInterval(async () => {
   if (!hosting || canvasCap || video.paused || video.readyState < 3 || !video.videoWidth) { fwStuck = 0; return; }
   let sent = 0, live = 0;
   for (const p of peers.values()) {
-    if (p.pc.connectionState !== 'connected') continue;
+    if (!p.pc || p.pc.connectionState !== 'connected') continue;
     live++;
     try { (await p.pc.getStats()).forEach(x => { if (x.type === 'outbound-rtp' && x.kind === 'video') sent += x.framesEncoded || 0; }); } catch (e) {}
   }
   if (!live) { fwStuck = 0; fwLast = -1; return; }
   fwStuck = sent <= fwLast ? fwStuck + 1 : 0;
   fwLast = sent;
-  if (fwStuck >= 2) { fwStuck = 0; if (startCanvasCapture()) { pushTracks(); console.info('[together] switched stream to backup capture (direct capture sent no frames)'); } }
+  if (fwStuck >= 2) {
+    fwStuck = 0;
+    if (startCanvasCapture()) {
+      pushTracks();
+      // the direct capture's picture is unused now — stop it so the browser stops copying full-size frames into it
+      try { const cs = captured(); cs && cs.getVideoTracks().forEach(t => t.stop()); } catch (e) {}
+      console.info('[together] switched stream to backup capture (direct capture sent no frames)');
+    }
+  }
 }, 1500);
 function pushTracks() {
   if (!hosting) return;
   const cs = captured(); if (!cs) return;
   const v = (canvasCap && canvasCap.track) || cs.getVideoTracks()[0] || null, a = cs.getAudioTracks()[0] || null;
   if (v && 'contentHint' in v) v.contentHint = 'motion';
-  for (const p of peers.values()) for (const tr of p.pc.getTransceivers()) {
+  for (const p of peers.values()) if (p.pc) for (const tr of p.pc.getTransceivers()) {
     const k = tr.receiver && tr.receiver.track && tr.receiver.track.kind;
     const t = k === 'video' ? v : k === 'audio' ? a : null;
     if (t && tr.sender.track !== t) tr.sender.replaceTrack(t).then(() => tuneSenders(p.pc)).catch(() => {});
@@ -1658,7 +1748,7 @@ function startHosting() {
 function stopHosting(silent) {
   if (!hosting) return;
   hosting = false;
-  for (const [id, p] of peers) { try { net.signal(id, { type: 'bye' }); } catch (e) {} try { p.pc.close(); } catch (e) {} }
+  for (const [id, p] of peers) { try { net.signal(id, { type: 'bye' }); } catch (e) {} try { p.pc && p.pc.close(); } catch (e) {} }
   peers.clear();
   stopCanvasCapture();
   if (net) net.setStream(null).catch(() => {});
@@ -1667,14 +1757,20 @@ function stopHosting(silent) {
 }
 function dropPeer(id) {
   const p = peers.get(id);
-  if (p) { try { p.pc.close(); } catch (e) {} peers.delete(id); renderStreamUI(); }
+  if (p) { try { p.pc && p.pc.close(); } catch (e) {} peers.delete(id); renderStreamUI(); }
   if (viewer && viewer.host === id) stopViewing(false, 'The stream ended — ' + ((streamInfo && streamInfo.name) || 'the host') + ' left.');
 }
-function hostAccept(m) {
+async function hostAccept(m) {
   if (!hosting) { net.signal(m.from, { type: 'bye' }); return; }
   const old = peers.get(m.from); if (old) try { old.pc.close(); } catch (e) {}
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const peer = { pc, dc: null, id: m.from };
+  // register the peer first so ICE that arrives while we fetch relay credentials isn't lost
+  let release; const gate = new Promise(r => { release = r; });
+  const placeholder = { pc: null, dc: null, id: m.from, ready: gate };
+  peers.set(m.from, placeholder);
+  const servers = await iceServers();
+  if (!hosting || peers.get(m.from) !== placeholder) { release(); return; }
+  const pc = new RTCPeerConnection(rtcConfig(servers));
+  const peer = placeholder; peer.pc = pc;
   peers.set(m.from, peer);
   pc.onicecandidate = e => { if (e.candidate) net.signal(m.from, { type: 'ice', c: JSON.stringify(e.candidate) }); };
   pc.ondatachannel = e => { peer.dc = e.channel; e.channel.onopen = () => sendSubsTo(peer); e.channel.onmessage = () => {}; };
@@ -1684,6 +1780,7 @@ function hostAccept(m) {
     renderStreamUI();
   };
   peer.ready = (async () => {
+    release();
     await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
     const cs = captured();
     for (const tr of pc.getTransceivers()) {
@@ -1765,7 +1862,9 @@ async function watchStream() {
   stopViewing(true);
   if (mode === 'file') { video.pause(); video.removeAttribute('src'); video.load(); if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null; file = null; }
   const st = streamInfo;
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const servers = await iceServers();
+  if (!streamInfo || streamInfo.host !== st.host) return;
+  const pc = new RTCPeerConnection(rtcConfig(servers));
   const ms = new MediaStream();
   viewer = { pc, host: st.host, dc: null, ms, got: false };
   mode = 'stream'; loaded = false;
@@ -1810,7 +1909,7 @@ function stopViewing(silent, msg) {
   if (mode === 'stream') { mode = 'none'; loaded = false; stage.classList.remove('loaded', 'streaming', 'connecting'); $('empty').hidden = false; if (net) net.me({ mode: 'none' }); }
   subs.tracks = []; subs.active = null; renderCues(true); $('ccDot').hidden = true;
   renderStreamUI(); renderEmpty();
-  if (!silent && msg) { const e = $('videoErr'); e.textContent = msg; e.hidden = false; }
+  if (!silent && msg) { const e = $('videoErr'); e.textContent = msg; e.hidden = false; note(myName + ': ' + msg); }
 }
 function playStream() {
   internalPlayAt = performance.now();
@@ -1860,7 +1959,7 @@ async function onSignal(m) {
     else if (m.type === 'ice') {
       const c = JSON.parse(m.c);
       const p = peers.get(m.from);
-      if (p) { await p.ready; await p.pc.addIceCandidate(c); }
+      if (p) { await p.ready; if (p.pc) await p.pc.addIceCandidate(c); }
       else if (viewer && viewer.host === m.from) {
         // ICE can beat the answer here; wait for it
         for (let i = 0; i < 50 && !viewer.ready; i++) await new Promise(r => setTimeout(r, 100));
@@ -1876,7 +1975,7 @@ function renderStreamUI() {
   const btn = $('castBtn');
   btn.classList.toggle('on', hosting);
   btn.hidden = mode === 'stream';
-  const n = [...peers.values()].filter(p => p.pc.connectionState === 'connected').length;
+  const n = [...peers.values()].filter(p => p.pc && p.pc.connectionState === 'connected').length;
   $('castCount').hidden = !hosting || !n; $('castCount').textContent = n;
   btn.title = hosting ? 'Streaming to ' + n + ' — click to stop' : 'Stream this video to your partner';
   const pill = $('streamPill');
@@ -2186,6 +2285,7 @@ function scanSubs(f) {
     renderMenu();
     checkPicture();
     if (mode !== 'file') return;
+    setTimeout(formatAdvice, 0);
     const a = info.audio[0];
     const bad = a && badAudio(a.codec);
     if (bad) showBanner('Heads-up: this file\'s audio is <b>' + bad + '</b>. Most browsers can\'t decode it, so you may get picture with <b>no sound</b>. Fix: convert the audio track to AAC (HandBrake or ffmpeg), or use a different copy.', [{ label: 'Got it', fn: hideBanner }]);
@@ -2399,6 +2499,7 @@ const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictograp
 function onChat(m, key) {
   if (!m || !m.text || seenChat.has(key)) return;
   seenChat.add(key);
+  if (m.sys) { sys('⚠ ' + m.text); return; }
   const mine = m.cid === CID;
   const box = $('msgs');
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
@@ -2556,7 +2657,7 @@ window.addEventListener('pagehide', () => { if (hosting) stopHosting(true); if (
 })();
 
 // expose for debugging in the console
-window.together = { get state() { return remote; }, get members() { return members; }, get mode() { return mode; }, get leader() { return leaderId(); }, get hosting() { return hosting; }, cid: CID, expected: () => expected(ref()), hostTime: () => hostTime(), get peers() { return [...peers.values()].map(p => p.pc); } };
+window.together = { get state() { return remote; }, get members() { return members; }, get mode() { return mode; }, get leader() { return leaderId(); }, get hosting() { return hosting; }, cid: CID, expected: () => expected(ref()), hostTime: () => hostTime(), get peers() { return [...peers.values()].map(p => p.pc).filter(Boolean); } };
 })();
 
 </script>
